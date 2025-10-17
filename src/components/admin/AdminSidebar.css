@@ -1,0 +1,212 @@
+/* AdminSidebar.css */
+.adm-sb {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 250px;
+  background: linear-gradient(135deg, #003366 0%, #002244 100%);
+  color: white;
+  transition: width 0.3s ease;
+  z-index: 1000;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.adm-sb-collapsed {
+  width: 70px;
+}
+
+.adm-sb-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70px;
+}
+
+.adm-sb-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.adm-sb-logo-mini {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+}
+
+.adm-sb-nav {
+  flex: 1;
+  padding: 20px 0;
+  overflow-y: auto;
+}
+
+.adm-sb-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.adm-sb-nav li {
+  margin-bottom: 5px;
+}
+
+.adm-sb-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.adm-sb-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.adm-sb-active {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: white !important;
+  border-right: 3px solid #4CAF50;
+}
+
+.adm-sb-item i {
+  width: 20px;
+  margin-right: 15px;
+  font-size: 1.1rem;
+  transition: margin-right 0.3s ease;
+}
+
+.adm-sb-collapsed .adm-sb-item i {
+  margin-right: 0;
+}
+
+.adm-sb-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #003366;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.adm-sb-collapsed .adm-sb-item:hover .adm-sb-tooltip {
+  opacity: 1;
+  visibility: visible;
+  left: calc(100% + 10px);
+}
+
+.adm-sb-footer {
+  padding: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.adm-sb-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-sb-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.adm-sb-details h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.adm-sb-details p {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.adm-sb-user-mini {
+  display: flex;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+/* Modern Switch to Main App button */
+.adm-sb-switch-btn {
+  margin-top: 12px;
+  transition: background 0.2s, color 0.2s;
+  border: 1px solid #2979ff;
+  color: #2979ff;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.adm-sb-switch-btn:hover {
+  background: #2979ff;
+  color: #fff;
+}
+
+/* For collapsed state, shrink button */
+.adm-sb-collapsed .adm-sb-switch-btn {
+  width: 40px;
+  padding: 6px;
+  justify-content: center;
+}
+.adm-sb-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+  .adm-sb {
+    width: 0;
+    transform: translateX(-100%);
+  }
+  
+  .adm-sb-collapsed {
+    width: 250px;
+    transform: translateX(0);
+  }
+  
+  .adm-sb-tooltip {
+    display: none;
+  }
+}

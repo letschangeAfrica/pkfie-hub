@@ -1,0 +1,411 @@
+/* Pathfinder.css */
+.pathfinder-section {
+    padding: 1rem 0;
+}
+
+.pathfinder-intro {
+    display: flex;
+    align-items: center;
+    background: var(--color-white);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 2rem;
+    border-left: 4px solid var(--color-gold);
+}
+
+.pathfinder-hero {
+    flex: 2;
+}
+
+.pathfinder-hero h3 {
+    color: var(--color-blue);
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    font-weight: 800;
+}
+
+.pathfinder-hero p {
+    color: var(--color-black);
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+    font-size: 1.1rem;
+}
+
+.pathfinder-image {
+    flex: 1;
+    text-align: center;
+}
+
+.pathfinder-image i {
+    font-size: 6rem;
+    color: var(--color-gold);
+    opacity: 0.8;
+}
+
+.cta-button {
+    background: var(--color-blue);
+    color: var(--color-white);
+    border: none;
+    border-radius: 30px;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cta-button:hover {
+    background: var(--color-gold);
+    color: var(--color-blue);
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.cta-button.secondary {
+    background: transparent;
+    color: var(--color-blue);
+    border: 2px solid var(--color-blue);
+}
+
+.cta-button.secondary:hover {
+    background: var(--color-blue);
+    color: var(--color-white);
+}
+
+/* Quiz Container */
+.quiz-container {
+    background: var(--color-white);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 2rem;
+}
+
+.quiz-progress {
+    margin-bottom: 2rem;
+}
+
+.progress-bar {
+    height: 10px;
+    background: var(--color-light-blue);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--color-gold);
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.9rem;
+    color: var(--color-gray);
+    font-weight: 600;
+}
+
+.quiz-content {
+    min-height: 300px;
+}
+
+.question-container {
+    margin-bottom: 2rem;
+}
+
+.question-text {
+    font-size: 1.3rem;
+    color: var(--color-blue);
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+}
+
+.options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.option-button {
+    background: var(--color-light-blue);
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 1rem;
+}
+
+.option-button:hover {
+    background: var(--color-blue);
+    color: var(--color-white);
+    transform: translateY(-3px);
+}
+
+.option-button.selected {
+    background: var(--color-blue);
+    color: var(--color-white);
+    border-color: var(--color-gold);
+}
+
+.quiz-navigation {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+}
+
+.nav-button {
+    background: var(--color-white);
+    color: var(--color-blue);
+    border: 2px solid var(--color-blue);
+    border-radius: 30px;
+    padding: 0.8rem 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-button:hover:not(:disabled) {
+    background: var(--color-blue);
+    color: var(--color-white);
+}
+
+.nav-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Results Container */
+.results-container {
+    background: var(--color-white);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 2rem;
+}
+
+.results-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.results-header h3 {
+    color: var(--color-blue);
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    font-weight: 800;
+}
+
+.results-header p {
+    color: var(--color-black);
+    font-size: 1.1rem;
+}
+
+.program-result {
+    margin-bottom: 2rem;
+}
+
+.program-card {
+    background: var(--color-light-blue);
+    border-radius: 15px;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1.5rem;
+    transition: var(--transition);
+}
+
+.program-card.featured {
+    background: linear-gradient(135deg, var(--color-light-blue) 0%, var(--color-light-gold) 100%);
+    border-left: 4px solid var(--color-gold);
+}
+
+.program-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.program-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--color-blue);
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.program-details h4, .program-details h5 {
+    color: var(--color-blue);
+    margin-bottom: 0.5rem;
+}
+
+.program-details h4 {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.program-match {
+    color: var(--color-gold);
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.program-skills {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.skill-tag {
+    background: var(--color-white);
+    color: var(--color-blue);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.other-programs {
+    margin-bottom: 2rem;
+}
+
+.other-programs h4 {
+    color: var(--color-blue);
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.programs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.small .program-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 1rem;
+}
+
+.small .program-icon {
+    margin: 0 auto;
+}
+
+.results-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* Programs Overview */
+.programs-overview {
+    background: var(--color-white);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: var(--shadow);
+}
+
+.section-title {
+    color: var(--color-blue);
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    font-weight: 800;
+}
+
+.program-link {
+    color: var(--color-blue);
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 1rem;
+    transition: var(--transition);
+}
+
+.program-link:hover {
+    color: var(--color-gold);
+    gap: 0.5rem;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none;
+}
+
+/* Responsive Design for Pathfinder */
+@media (max-width: 992px) {
+    .pathfinder-intro {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .pathfinder-image {
+        margin-top: 2rem;
+    }
+    
+    .pathfinder-image i {
+        font-size: 4rem;
+    }
+    
+    .options-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .programs-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .results-actions {
+        flex-direction: column;
+    }
+    
+    .program-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .program-icon {
+        margin: 0 auto;
+    }
+    
+    .quiz-navigation {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .nav-button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .pathfinder-hero h3 {
+        font-size: 1.5rem;
+    }
+    
+    .cta-button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .programs-grid {
+        grid-template-columns: 1fr;
+    }
+}

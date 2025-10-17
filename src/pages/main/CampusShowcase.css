@@ -1,0 +1,520 @@
+.campus-showcase {
+  padding: 2.5rem 2rem 2rem 2rem;
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.8s cubic-bezier(.5,.1,.2,1);
+}
+
+.cs-hero {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  position: relative;
+  min-height: 230px;
+  overflow: visible;
+}
+.cs-hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(105deg, #ffd70033 0%, #1d254044 100%);
+  border-radius: 1.5rem;
+  filter: blur(8px);
+  pointer-events: none;
+  animation: heroWaves 8s linear infinite alternate;
+}
+@keyframes heroWaves {
+  0% { filter: blur(8px) brightness(1);}
+  100% { filter: blur(18px) brightness(1.04);}
+}
+.cs-hero h2 {
+  font-size: 2.5rem;
+  color: #1d2540;
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+  position: relative;
+  z-index: 2;
+}
+.cs-anim-text {
+  display: inline-block;
+  background: linear-gradient(90deg, #ffd700 0%, #f7b42c 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: cs-fadeInUp 1.2s cubic-bezier(.17,.67,.83,.67) both;
+}
+@keyframes cs-fadeInUp {
+  0% { opacity: 0; transform: translateY(40px);}
+  100% { opacity: 1; transform: translateY(0);}
+}
+.cs-hero p {
+  color: #444;
+  font-size: 1.15rem;
+  font-weight: 500;
+  position: relative;
+  z-index: 2;
+}
+
+.cs-floating-balls {
+  position: absolute;
+  left: 0; right: 0; top: 0; height: 0; z-index: 1;
+  pointer-events: none;
+}
+.cs-ball {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: ballFloat 5s ease-in-out infinite alternate;
+}
+.cs-ball1 { width: 36px; height: 36px; background: #ffd700; left: 8%; top: -24px; animation-delay: 0s;}
+.cs-ball2 { width: 20px; height: 20px; background: #2979ff; left: 92%; top: -14px; animation-delay: 1.2s;}
+.cs-ball3 { width: 22px; height: 22px; background: #1d2540; left: 48%; top: -16px; animation-delay: 2.1s;}
+@keyframes ballFloat {
+  0% { transform: translateY(0) scale(1);}
+  100% { transform: translateY(40px) scale(1.18);}
+}
+
+/* FILTERS & SORT */
+.cs-controls {
+  margin-bottom: 1.3em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2em;
+  flex-wrap: wrap;
+}
+.cs-filter-group {
+  display: flex;
+  gap: 0.7em;
+}
+.cs-filter-btn {
+  background: var(--filter-color, #1d2540);
+  color: #fff;
+  border: none;
+  border-radius: 22px;
+  padding: 0.5em 1.4em;
+  font-weight: 600;
+  font-size: 1em;
+  cursor: pointer;
+  opacity: 0.78;
+  transition: opacity 0.16s, background 0.14s;
+}
+.cs-filter-btn.active,
+.cs-filter-btn:hover {
+  opacity: 1;
+  background: linear-gradient(90deg, var(--filter-color, #ffd700) 70%, #ffd700bb 100%);
+  color: #1d2540;
+}
+.cs-sort-select {
+  padding: 0.4em 0.8em;
+  border-radius: 8px;
+  font-size: 1em;
+  border: 1.5px solid #eee;
+  background: #fff;
+  font-weight: 600;
+  color: #1d2540;
+}
+
+/* TRENDING */
+.cs-trending {
+  margin-bottom: 2.3em;
+}
+.cs-trending-cards {
+  display: flex;
+  gap: 1.3em;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.cs-trending-card {
+  background: linear-gradient(135deg, #fff 90%, var(--trend-color, #ffd700) 100%);
+  border-radius: 24px;
+  box-shadow: 0 4px 28px 0 rgba(70, 72, 120, 0.11);
+  padding: 1.15em;
+  min-width: 210px;
+  max-width: 320px;
+  flex: 1 1 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  transform: scale(1) translateY(0);
+  transition: transform 0.23s cubic-bezier(.16,1.2,.2,1), box-shadow 0.21s;
+  z-index: 1;
+}
+.cs-trending-card:hover,
+.cs-trending-card:focus {
+  transform: scale(1.04) translateY(-6px) rotate(-1deg);
+  box-shadow: 0 8px 38px #ffd70044;
+  z-index: 3;
+}
+.cs-trending-card img,
+.cs-trending-card .cs-video-thumb img {
+  width: 100%;
+  border-radius: 14px;
+  object-fit: cover;
+  max-height: 130px;
+  margin-bottom: 0.7em;
+}
+.cs-trend-info {
+  text-align: center;
+}
+.cs-trend-title {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: #274072;
+  margin-bottom: 0.3em;
+}
+.cs-trend-likes {
+  color: #e53838;
+  font-weight: bold;
+  font-size: 1.08em;
+}
+
+/* GALLERY */
+.cs-section {
+  margin-bottom: 2.3rem;
+}
+.cs-section h3 {
+  color: #1d2540;
+  font-size: 1.35rem;
+  margin-bottom: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.cs-gallery {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* Animation for gallery cards */
+.animated-card {
+  opacity: 0;
+  transform: translateY(32px) scale(0.98);
+  animation: cardEnter 0.7s cubic-bezier(.24,1.38,.36,1) forwards;
+}
+@keyframes cardEnter {
+  to { opacity: 1; transform: none;}
+}
+
+.cs-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 3px 14px 0 rgba(40, 72, 120, 0.11);
+  padding: 1rem;
+  min-width: 220px;
+  max-width: 260px;
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: box-shadow 0.18s, transform 0.18s;
+  cursor: pointer;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+.cs-card:focus,
+.cs-card:hover {
+  box-shadow: 0 8px 28px #ffd70033;
+  transform: translateY(-6px) scale(1.03) rotate(-1deg);
+  z-index: 2;
+}
+.cs-card:hover .cs-glow {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.cs-glow {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 95%; height: 90%;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: none;
+  background: radial-gradient(circle at 60% 40%, #ffd70044 0%, #fff0 65%);
+  opacity: 0;
+  transition: opacity 0.21s, transform 0.21s;
+  z-index: 1;
+}
+.cs-card img {
+  width: 95%;
+  border-radius: 9px;
+  margin-bottom: 0.65rem;
+  object-fit: cover;
+  max-height: 120px;
+  transition: transform 0.2s;
+  z-index: 2;
+  position: relative;
+}
+.cs-card:focus img,
+.cs-card:hover img {
+  transform: scale(1.04) rotate(-1deg);
+}
+
+.cs-photo-caption, .cs-card-title {
+  font-size: 1rem;
+  color: #274072;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 0.3rem;
+  z-index: 2;
+  position: relative;
+}
+
+.cs-media-thumb {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.cs-media-img,
+.cs-media-video {
+  width: 95%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 9px;
+  display: block;
+  background: #111;
+}
+
+.cs-video-thumb {
+  position: relative;
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cs-video-thumb img {
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px #1d254033;
+  object-fit: cover;
+  aspect-ratio: 16/9;
+  z-index: 2;
+}
+.cs-play-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.4rem;
+  color: #ffd700;
+  background: rgba(0,0,0,0.32);
+  border-radius: 50%;
+  padding: 0.25em 0.35em;
+  pointer-events: none;
+  z-index: 3;
+  animation: playPulse 1.8s infinite cubic-bezier(.4,0,.2,1);
+}
+@keyframes playPulse {
+  0%, 100% { filter: drop-shadow(0 0 0 #ffd700bb);}
+  50% { filter: drop-shadow(0 0 16px #ffd700bb);}
+}
+
+/* Meta & Like Button */
+.cs-card-meta {
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  font-size: 0.95em;
+  color: #888;
+  margin: 0.35em 0 0.1em 0;
+  font-weight: 600;
+}
+.cs-date {
+  background: #f7f7fa;
+  border-radius: 6px;
+  padding: 0.14em 0.54em;
+}
+.cs-occasion {
+  background: #ffd70023;
+  border-radius: 6px;
+  padding: 0.14em 0.54em;
+  color: #b98a00;
+}
+
+.cs-like-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  background: #f7f7f7;
+  border: none;
+  border-radius: 50px;
+  padding: 0.3em 0.9em 0.3em 0.7em;
+  margin-top: 0.25em;
+  margin-bottom: 0.15em;
+  font-size: 1.07em;
+  color: #888;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, color 0.18s, transform 0.12s;
+  outline: none;
+  box-shadow: 0 1px 3px #ffd70022;
+  position: relative;
+  z-index: 2;
+}
+.cs-like-btn.liked {
+  color: #e53838;
+  background: #fff0f3;
+  transform: scale(1.09);
+  box-shadow: 0 2px 10px #ffd70033;
+}
+.cs-like-btn:active {
+  transform: scale(0.97);
+}
+.cs-like-btn[disabled] {
+  opacity: 0.7;
+  cursor: default;
+}
+.cs-like-count {
+  font-weight: 700;
+  margin-left: 0.2em;
+}
+
+/* Like Burst Animation */
+.cs-like-burst {
+  position: absolute;
+  top: -1.4em;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 2.5em;
+  z-index: 5;
+}
+.cs-like-heart {
+  position: absolute;
+  font-size: 1.3em;
+  color: #e53838;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%) scale(1);
+  opacity: 0.9;
+  animation: likeHeartBurst 0.57s cubic-bezier(.5,-0.2,.5,1.2) forwards;
+  content: "❤️";
+}
+.cs-like-heart:after {
+  content: "❤️";
+  font-size: 1.3em;
+}
+@keyframes likeHeartBurst {
+  0% { opacity: 0.8; transform: translateY(0) scale(1);}
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-1.5em) scale(1.6) rotate(-15deg);}
+}
+
+/* Lightbox */
+.cs-lightbox {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30,40,80,0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  animation: cs-fadeIn 0.24s;
+}
+@keyframes cs-fadeIn {
+  from { opacity: 0;}
+  to { opacity: 1;}
+}
+.cs-lightbox-content {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 8px 32px #1d254077;
+  max-width: 98vw;
+  max-height: 95vh;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  animation: lightboxPop 0.33s cubic-bezier(.3,1.4,.3,1) both;
+}
+@keyframes lightboxPop {
+  0% { opacity: 0; transform: scale(0.96);}
+  100% { opacity: 1; transform: scale(1);}
+}
+.cs-lightbox-media {
+  width: 100%;
+  max-width: 85vw;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 16px;
+  background: #111;
+  display: block;
+  margin: 0 auto;
+}
+.cs-lightbox-caption {
+  margin-top: 0.6em;
+}
+.cs-lb-title {
+  color: #1d2540;
+  font-weight: bold;
+  font-size: 1.15em;
+  margin-bottom: 0.1em;
+}
+.cs-lb-meta {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.1em;
+  font-size: 1em;
+  color: #888;
+  margin: 0.35em 0 0 0;
+  font-weight: 600;
+}
+.cs-like-lb {
+  color: #e53838;
+  font-size: 1.13em;
+  font-weight: 700;
+  margin-left: 0.3em;
+}
+
+.cs-lightbox-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 1.2rem;
+  font-size: 2rem;
+  background: none;
+  border: none;
+  color: #ffd700;
+  font-weight: 900;
+  cursor: pointer;
+  z-index: 2;
+}
+.cs-lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  font-size: 2.2rem;
+  background: none;
+  border: none;
+  color: #274072;
+  font-weight: 900;
+  cursor: pointer;
+  transform: translateY(-50%);
+  z-index: 2;
+  opacity: 0.7;
+  transition: color 0.18s, opacity 0.13s;
+}
+.cs-lightbox-arrow.left { left: 0.4rem; }
+.cs-lightbox-arrow.right { right: 0.4rem; }
+.cs-lightbox-arrow:focus,
+.cs-lightbox-arrow:hover {
+  color: #ffd700;
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .cs-controls { flex-direction: column; gap: 1em;}
+  .cs-gallery, .cs-trending-cards { flex-direction: column; gap: 1.1rem; align-items: center;}
+  .cs-card { min-width: 180px; max-width: 95vw;}
+  .cs-lightbox-content { padding: 1.1rem 0.5rem;}
+  .cs-lightbox-media,
+  .cs-lightbox img,
+  .cs-lightbox iframe { max-width: 95vw; max-height: 40vh;}
+}

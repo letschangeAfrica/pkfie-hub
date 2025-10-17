@@ -1,0 +1,113 @@
+:root {
+  --color-blue: #163f6e;
+  --color-white: #fff;
+  --color-gold: #FFD700;
+  --color-brown: #5d4037;
+}
+
+/* Layout container: sidebar + main content */
+.container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Main content with space for sidebar */
+.main-content {
+    flex: 1;
+    margin-left: 320px; /* Same as your sidebar width */
+    padding: 2rem 2.5rem 2rem 2.5rem;
+    background-color: var(--color-white);
+    min-height: 100vh;
+    transition: margin-left 0.2s;
+    box-sizing: border-box;
+}
+
+/* Responsive left margin for main content */
+@media (max-width: 1200px) {
+    .main-content {
+        margin-left: 240px;
+        padding: 2rem 1.2rem;
+    }
+    .footer {
+        margin-left: 240px;
+    }
+}
+@media (max-width: 992px) {
+    .container {
+        flex-direction: column;
+    }
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 1.5rem;
+    }
+    .footer {
+        margin-left: 0;
+    }
+}
+@media (max-width: 768px) {
+    .main-content {
+        padding: 1.2rem;
+    }
+}
+@media (max-width: 480px) {
+    .main-content {
+        padding: 0.7rem;
+    }
+}
+
+/* Footer with left space for sidebar */
+.footer {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--color-white);
+    font-size: 0.9rem;
+    background: var(--color-blue);
+    margin-left: 320px;
+    transition: margin-left 0.2s;
+}
+
+@media (max-width: 1200px) {
+    .footer {
+        margin-left: 240px;
+    }
+}
+@media (max-width: 992px) {
+    .footer {
+        margin-left: 0;
+    }
+}
+
+/* Cultural Divider */
+.cultural-divider {
+    text-align: center;
+    margin: 1.5rem 0;
+    position: relative;
+}
+.cultural-divider.horizontal {
+    margin: 2rem 0;
+}
+.cultural-divider::before,
+.cultural-divider::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--color-gold), transparent);
+}
+.cultural-divider::before {
+    left: 0;
+}
+.cultural-divider::after {
+    right: 0;
+}
+.cultural-divider.horizontal::before,
+.cultural-divider.horizontal::after {
+    width: 40%;
+}
+.adinkra-symbol {
+    font-size: 2rem;
+    color: var(--color-gold);
+    display: inline-block;
+}
