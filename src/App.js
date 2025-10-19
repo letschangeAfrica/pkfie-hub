@@ -23,6 +23,7 @@ import SearchResults from './pages/main/SearchResults';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AdminSearchResults from './pages/admin/AdminSearchResults';
 import CampusShowcase from './pages/main/CampusShowcase'; // <-- The new, modern gallery page
+import AdminNotifications from './pages/admin/AdminNotifications';
 import './App.css';
 
 // ProtectedRoute implementation for role-based protection
@@ -30,8 +31,8 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 
   if (loading) return <div>Loading...</div>;
-  if (!isAuthenticated) return <Navigate to="/admin/login" />;
-  if (requireAdmin && !isAdmin) return <Navigate to="/" />;
+  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
+  if (requireAdmin && !isAdmin) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -41,8 +42,9 @@ const PublicOnlyRoute = ({ children }) => {
 
   if (loading) return <div>Loading...</div>;
   if (isAuthenticated) {
-    if (isAdmin) return <Navigate to="/admin/AdminDashboard" />;
-    return <Navigate to="/" />;
+    // send admins to /admin and normal users to main app
+    if (isAdmin) return <Navigate to="/admin" replace />;
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -74,6 +76,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/handbook" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -81,6 +84,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/assistant" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -88,6 +92,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/pathfinder" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -95,6 +100,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/innovation" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -102,6 +108,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/feedback" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -109,6 +116,7 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+
           <Route path="/profile" element={
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
@@ -151,12 +159,13 @@ function App() {
             </PublicOnlyRoute>
           } />
 
-          {/* Admin Panel Protected Routes */}
-          <Route path="/admin/AdminDashboard" element={
+          {/* Admin Panel Protected Routes (parent path = /admin) */}
+          <Route path="/admin/*" element={
             <ProtectedRoute requireAdmin={true}>
               <AdminLayout theme={theme} setTheme={setTheme} />
             </ProtectedRoute>
           }>
+            {/* index -> /admin */}
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="documents" element={<DocumentManagement />} />
@@ -166,6 +175,7 @@ function App() {
             <Route path="ai-model" element={<AIModelManagement />} />
             <Route path="settings" element={<SystemSettings />} />
             <Route path="search" element={<AdminSearchResults />} />
+            <Route path="notifications" element={<AdminNotifications />} />
           </Route>
 
           {/* Fallback: 404 */}

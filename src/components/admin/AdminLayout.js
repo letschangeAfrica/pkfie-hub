@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import AdminDashboard from '../../pages/admin/AdminDashboard';
@@ -11,6 +11,7 @@ import FeedbackManagement from '../../pages/admin/FeedbackManagement';
 import AIModelManagement from '../../pages/admin/AIModelManagement';
 import SystemSettings from '../../pages/admin/SystemSettings';
 import AdminSearchResults from '../../pages/admin/AdminSearchResults';
+import AdminNotifications from '../../pages/admin/AdminNotifications';
 import './AdminLayout.css';
 
 const AdminLayout = () => {
@@ -37,9 +38,11 @@ const AdminLayout = () => {
             <Route path="feedback" element={<FeedbackManagement />} />
             <Route path="ai-model" element={<AIModelManagement />} />
             <Route path="settings" element={<SystemSettings />} />
-            {/* Add the search route here */}
             <Route path="search" element={<AdminSearchResults />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
+            {/* notifications still present */}
+            <Route path="notifications" element={<AdminNotifications />} />
+            {/* fallback renders dashboard for unknown nested paths */}
+            <Route path="*" element={<AdminDashboard />} />
           </Routes>
         </main>
       </div>
