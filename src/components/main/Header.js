@@ -1,302 +1,287 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
-import { FaBell } from "react-icons/fa";
+import {
+  FiBell, FiSearch, FiSun, FiMoon, FiUser,
+  FiLogOut, FiMenu, FiChevronDown, FiSettings
+} from 'react-icons/fi';
 import './Header.css';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
-const pageTitles = {
-  '/': {
-    title: "PKFConnect Dashboard",
-    description: "Access resources, get answers, and explore programs"
-  },
-  '/handbook': {
-    title: "PKFokam Digital Handbook", 
-    description: "Complete guide to policies, procedures, and resources"
-  },
-  '/assistant': {
-    title: "PKFConnect AI Assistant",
-    description: "Get instant answers to your questions about PKFokam"
-  },
-  '/pathfinder': {
-    title: "Program Pathfinder",
-    description: "Discover which field of study aligns with your passions and skills"
-  },
-  '/innovation': {
-    title: "Innovation Hub",
-    description: "Where ideas take flight and creativity meets technology"
-  },
-  '/feedback': {
-    title: "Feedback & Suggestions",
-    description: "Your voice matters - help us improve PKFConnect"
-  },
-  '/profile': {
-    title: "User Profile",
-    description: "Manage your profile and preferences"
-  },
-  '/search': {
-    title: "Search",
-    description: "Find programs and resources across PKFConnect"
-  },
-  '/showcase': {
-    title: "Campus Showcase",
-    description: "Watch, relive, and share vibrant PKFokam moments"
-  }
+const pageMeta = {
+  '/':           { title: 'Dashboard',        desc: 'Access resources, announcements and campus updates' },
+  '/handbook':   { title: 'Digital Handbook',  desc: 'Policies, procedures and institutional resources' },
+  '/assistant':  { title: 'AI Assistant',      desc: 'Instant answers about PKFokam — powered by AI' },
+  '/pathfinder': { title: 'Program Pathfinder',desc: 'Discover the academic path that matches your strengths' },
+  '/innovation': { title: 'Innovation Hub',    desc: 'Where ideas take flight and creativity meets technology' },
+  '/feedback':   { title: 'Feedback',          desc: 'Your voice matters — help us improve PKFConnect' },
+  '/showcase':   { title: 'Campus Showcase',   desc: 'Relive vibrant PKFokam moments' },
+  '/calendar':   { title: 'Calendar',          desc: 'Events, deadlines and academic schedule' },
+  '/profile':    { title: 'Profile',           desc: 'Manage your account and preferences' },
+  '/search':     { title: 'Search',            desc: 'Find anything across PKFConnect' },
 };
 
-const Header = ({ theme, setTheme }) => {
-  const location = useLocation();
-  const { pathname } = location;
+const Header = ({ theme, setTheme, onMenuToggle, sidebarOpen }) => {
+  const { pathname } = useLocation();
   const { currentUser, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [loadingNotif, setLoadingNotif] = useState(true);
-  const [search, setSearch] = useState('');
-  const menuRef = useRef(null);
-  const searchInputRef = useRef(null);
-  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // Fetch notifications from API
-  useEffect(() => {
-    async function fetchNotifications() {
-      setLoadingNotif(true);
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(
-          `${BASE_URL}/api/notifications/?ordering=-created_at&page=1&page_size=8`, 
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setNotifications(res.data.results || res.data || []);
-      } catch (e) {
-        setNotifications([]);
-      } finally {
-        setLoadingNotif(false);
-      }
-    }
-    if (notifOpen) fetchNotifications();
-  }, [notifOpen]);
+  const [search, setSearch]       = useState('');
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [menuOpen, setMenuOpen]   = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotif, setLoadingNotif]   = useState(true);
 
-  // Mark notification as read
-  const markAsRead = async (notifId) => {
+  const notifRef  = useRef(null);
+  const menuRef   = useRef(null);
+  const searchRef = useRef(null);
+
+  const page = pathname.startsWith('/programs/')
+    ? { title: 'Program Details', desc: 'Explore a PKFokam academic program in depth' }
+    : (pageMeta[pathname] || pageMeta['/']);
+
+  /* Notifications */
+  const fetchNotifications = useCallback(async () => {
+    setLoadingNotif(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(
+        `${BASE_URL}/api/notifications/?ordering=-created_at&page_size=8`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNotifications(res.data.results || res.data || []);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setLoadingNotif(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (notifOpen) fetchNotifications();
+  }, [notifOpen, fetchNotifications]);
+
+  const markRead = async (id) => {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `${BASE_URL}/api/notifications/${notifId}/`,
+        `${BASE_URL}/api/notifications/${id}/`,
         { read: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setNotifications((prev) =>
-        prev.map((n) => n.id === notifId ? { ...n, read: true } : n)
-      );
-    } catch (e) {
-      // ignore error
-    }
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch { /* ignore */ }
   };
 
-  // Unread notifications count
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  /* Outside click */
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (
-        notifDropdownRef.current &&
-        !notifDropdownRef.current.contains(event.target) &&
-        !event.target.closest('.notif-btn')
-      ) {
-        setNotifOpen(false);
-      }
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+      if (menuRef.current  && !menuRef.current.contains(e.target))  setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // PATCH: Detect /programs/:code and show a program detail header
-  let page;
-  if (pathname.startsWith('/programs/')) {
-    page = {
-      title: "Program Details",
-      description: "Explore a PKFokam academic program in depth"
+  /* "/" shortcut to focus search */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === '/' && document.activeElement !== searchRef.current) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
     };
-  } else {
-    page = pageTitles[pathname] || pageTitles['/'] || {
-      title: "PKFConnect",
-      description: "Welcome to PKFConnect"
-    };
-  }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
-  // Helper for avatar (optional fallback)
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!search.trim()) return;
+    navigate(`/search?q=${encodeURIComponent(search.trim())}`);
+    setSearch('');
+    searchRef.current?.blur();
+  };
+
+  /* Avatar */
   const avatarUrl = currentUser?.profile?.profile_picture
     ? (currentUser.profile.profile_picture.startsWith('http')
         ? currentUser.profile.profile_picture
-        : `http://localhost:8000${currentUser.profile.profile_picture.startsWith('/') ? '' : '/media/'}${currentUser.profile.profile_picture}`)
+        : `${BASE_URL}/media/${currentUser.profile.profile_picture}`)
     : null;
 
-  // --- SEARCH HANDLERS ---
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (search.trim().length === 0) return;
-    navigate(`/search?q=${encodeURIComponent(search.trim())}`);
-    setSearch('');
-    if (searchInputRef.current) {
-      searchInputRef.current.blur();
-    }
-  };
-
-  // Optionally, autofocus the search bar when "/" is pressed
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === '/' && document.activeElement !== searchInputRef.current && !menuOpen) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [menuOpen]);
-
-  // Personalized Greeting
-  const greeting = currentUser
-    ? `Welcome back, ${currentUser.first_name || currentUser.username || "User"}!`
-    : "Welcome to PKFConnect";
+  const initials = currentUser
+    ? `${currentUser.first_name?.[0] || ''}${currentUser.last_name?.[0] || ''}`.toUpperCase() || 'U'
+    : 'U';
 
   return (
-    <header className="content-header">
-      <div className="welcome">
-        <h2>{greeting}</h2>
-        <p>{page.description}</p>
+    <header className="app-header" role="banner">
+      {/* Left: hamburger + page info */}
+      <div className="header-left">
+        <button
+          className="hamburger-btn"
+          onClick={onMenuToggle}
+          aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={sidebarOpen}
+          aria-controls="main-sidebar"
+        >
+          <FiMenu aria-hidden="true" />
+        </button>
+
+        <div className="header-page-info">
+          <div className="header-page-title">{page.title}</div>
+          <div className="header-page-desc">{page.desc}</div>
+        </div>
       </div>
+
+      {/* Right: search, notif, theme, profile */}
       <div className="header-right">
-        {/* Search bar */}
-        <form className="search-bar" onSubmit={handleSearchSubmit} role="search" autoComplete="off">
+        {/* Search */}
+        <form className="header-search" onSubmit={handleSearch} role="search">
+          <FiSearch className="header-search-icon" aria-hidden="true" />
           <input
-            ref={searchInputRef}
-            type="text"
+            ref={searchRef}
+            type="search"
+            className="header-search-input"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search for information..."
-            aria-label="Search"
+            placeholder="Search…"
+            aria-label="Search PKFConnect"
           />
-          <button type="submit" aria-label="Search">
-            <i className="fas fa-search"></i>
-          </button>
         </form>
-        {/* Notification Button */}
-        <div className="header-notif">
+
+        {/* Notifications */}
+        <div className="notif-wrap" ref={notifRef}>
           <button
-            className="notif-btn"
-            aria-label="Notifications"
+            className="header-icon-btn"
             onClick={() => setNotifOpen(v => !v)}
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            aria-expanded={notifOpen}
+            aria-haspopup="true"
           >
-            <FaBell />
-            {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+            <FiBell aria-hidden="true" />
+            {unreadCount > 0 && (
+              <span className="header-badge" aria-hidden="true">{unreadCount}</span>
+            )}
           </button>
+
           {notifOpen && (
-            <div className="notif-dropdown" ref={notifDropdownRef}>
-              <div className="notif-header">Notifications</div>
-              {loadingNotif ? (
-                <div className="notif-empty">Loading...</div>
-              ) : notifications.length === 0 ? (
-                <div className="notif-empty">No notifications</div>
-              ) : (
-                notifications.map(n => (
-                  <div
-                    key={n.id}
-                    className={`notif-item${n.read ? " read" : ""}`}
-                    onClick={async () => {
-                      if (!n.read) await markAsRead(n.id);
-                      if (n.link) window.open(n.link, '_blank');
-                    }}
-                  >
-                    {n.text || n.title || n.message}
-                    <span className="notif-date" style={{ display: "block", fontSize: "0.8em", color: "var(--color-gray)" }}>
-                      {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
-                    </span>
-                  </div>
-                ))
-              )}
+            <div className="notif-dropdown" role="dialog" aria-label="Notifications">
+              <div className="notif-header-row">
+                <span className="notif-title">Notifications</span>
+                {unreadCount > 0 && <span>{unreadCount} unread</span>}
+              </div>
+              <div className="notif-list">
+                {loadingNotif ? (
+                  <div className="notif-empty">Loading…</div>
+                ) : notifications.length === 0 ? (
+                  <div className="notif-empty">No notifications yet</div>
+                ) : (
+                  notifications.map(n => (
+                    <div
+                      key={n.id}
+                      className={`notif-item${n.read ? ' read' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={async () => {
+                        if (!n.read) await markRead(n.id);
+                        if (n.link) window.open(n.link, '_blank');
+                      }}
+                      onKeyDown={e => e.key === 'Enter' && e.currentTarget.click()}
+                    >
+                      <div className="notif-dot" aria-hidden="true" />
+                      <div>
+                        <div className="notif-text">{n.text || n.title || n.message}</div>
+                        {n.created_at && (
+                          <div className="notif-date">
+                            {new Date(n.created_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
-        {/* Theme Toggle Button */}
+
+        {/* Theme toggle */}
         <button
-          className="theme-toggle-btn"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          className="theme-toggle"
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
         >
-          {theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}
+          {theme === 'light'
+            ? <><FiMoon aria-hidden="true" /><span>Dark</span></>
+            : <><FiSun  aria-hidden="true" /><span>Light</span></>}
         </button>
-        {/* User profile dropdown */}
+
+        {/* Profile */}
         {currentUser && (
-          <div className="header-profile" ref={menuRef}>
+          <div className="header-profile-wrap" ref={menuRef}>
             <button
-              className="header-profile-btn wow-profile-btn"
+              className="profile-btn"
               onClick={() => setMenuOpen(v => !v)}
               aria-label="Open user menu"
+              aria-expanded={menuOpen}
+              aria-haspopup="true"
             >
-              <span className="wow-avatar-wrapper">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="User avatar"
-                    className="header-avatar wow-avatar"
-                  />
-                ) : (
-                  <i className="fas fa-user-circle header-avatar wow-avatar"></i>
-                )}
-                <span className="wow-status-dot"></span>
-              </span>
-              <span className="header-profile-name wow-profile-name">
-                {currentUser.first_name}
-              </span>
-              <i className="fas fa-chevron-down wow-chevron"></i>
+              <div className="profile-avatar">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="" aria-hidden="true" />
+                  : <span aria-hidden="true">{initials}</span>
+                }
+                <span className="profile-online" aria-hidden="true" />
+              </div>
+              <span className="profile-name">{currentUser.first_name}</span>
+              <FiChevronDown className="profile-chevron" aria-hidden="true" />
             </button>
+
             {menuOpen && (
-              <div className="header-profile-dropdown wow-dropdown">
-                <div className="wow-dropdown-top">
-                  <div className="wow-avatar-lg">
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt="User avatar"
-                        className="wow-avatar wow-avatar-lg"
-                      />
-                    ) : (
-                      <i className="fas fa-user-circle wow-avatar wow-avatar-lg"></i>
-                    )}
+              <div className="profile-dropdown" role="dialog" aria-label="User menu">
+                <div className="profile-dropdown-top">
+                  <div className="profile-dropdown-avatar">
+                    {avatarUrl
+                      ? <img src={avatarUrl} alt="" />
+                      : <span>{initials}</span>
+                    }
                   </div>
-                  <div className="wow-dropdown-userinfo">
-                    <div className="wow-dropdown-name">
+                  <div className="profile-dropdown-info">
+                    <div className="profile-dropdown-name">
                       {currentUser.first_name} {currentUser.last_name}
                     </div>
-                    <div className="wow-dropdown-role">
-                      {currentUser.role?.charAt(0).toUpperCase() + currentUser.role?.slice(1)}
+                    <div className="profile-dropdown-role">
+                      {currentUser.email}
                     </div>
                   </div>
                 </div>
-                <hr className="wow-dropdown-divider" />
+
                 <button
-                  className="wow-dropdown-btn"
-                  onClick={() => {
-                    navigate('/profile');
-                    setMenuOpen(false);
-                  }}
+                  className="profile-dropdown-item"
+                  onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                 >
-                  <i className="fas fa-user"></i> View Profile
+                  <FiUser aria-hidden="true" /> View Profile
                 </button>
+
                 <button
-                  className="wow-dropdown-btn"
-                  onClick={() => {
-                    logout();
-                    setMenuOpen(false);
-                  }}
+                  className="profile-dropdown-item"
+                  onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                 >
-                  <i className="fas fa-sign-out-alt"></i> Logout
+                  <FiSettings aria-hidden="true" /> Settings
+                </button>
+
+                <div className="profile-dropdown-divider" aria-hidden="true" />
+
+                <button
+                  className="profile-dropdown-item danger"
+                  onClick={() => { logout(); setMenuOpen(false); }}
+                >
+                  <FiLogOut aria-hidden="true" /> Sign Out
                 </button>
               </div>
             )}

@@ -1,296 +1,607 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  FiMail,
-  FiLock,
-  FiUser,
-  FiArrowRight,
-  FiEye,
-  FiEyeOff,
-  FiCheckCircle,
-  FiBook,
-  FiAward,
-  FiUsers
+  FiMail, FiLock, FiArrowRight, FiEye, FiEyeOff,
+  FiAlertCircle, FiBook, FiCompass, FiZap, FiUsers
 } from 'react-icons/fi';
 
+/* ── Inline styles (no external CSS dependency) ─────────── */
+const S = {
+  page: {
+    minHeight: '100vh',
+    display: 'flex',
+    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 60%, #0B2559 100%)',
+    position: 'relative',
+    overflow: 'hidden',
+    fontFamily: "'Nunito', 'Segoe UI', system-ui, sans-serif",
+  },
+  /* Adinkra diamond background pattern */
+  bgPattern: {
+    position: 'absolute',
+    inset: 0,
+    backgroundImage: `
+      repeating-linear-gradient(45deg, rgba(200,144,42,.07) 0, rgba(200,144,42,.07) 1px, transparent 0, transparent 50%),
+      repeating-linear-gradient(-45deg, rgba(200,144,42,.07) 0, rgba(200,144,42,.07) 1px, transparent 0, transparent 50%)
+    `,
+    backgroundSize: '32px 32px',
+    pointerEvents: 'none',
+  },
+  /* Kente stripe at very top */
+  kenteTop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 7,
+    background: 'repeating-linear-gradient(90deg,#C8902A 0,#C8902A 18px,#0B2559 18px,#0B2559 34px,#1A6B3A 34px,#1A6B3A 50px,#FFD700 50px,#FFD700 60px,#8B1A1A 60px,#8B1A1A 70px,#FFD700 70px,#FFD700 80px,#1A6B3A 80px,#1A6B3A 96px,#0B2559 96px,#0B2559 112px,#C8902A 112px,#C8902A 130px)',
+    zIndex: 10,
+  },
+  wrap: {
+    display: 'flex',
+    width: '100%',
+    minHeight: '100vh',
+    position: 'relative',
+    zIndex: 1,
+  },
+  /* ── Left panel ── */
+  left: {
+    flex: '1 1 52%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '5rem 4rem 4rem',
+    color: '#fff',
+  },
+  leftBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    background: 'rgba(200,144,42,.18)',
+    border: '1px solid rgba(200,144,42,.4)',
+    borderRadius: 99,
+    padding: '0.35rem 1rem',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    color: '#F0B429',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    marginBottom: '2rem',
+    width: 'fit-content',
+  },
+  brandRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.1rem',
+    marginBottom: '1.5rem',
+  },
+  brandIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    background: 'linear-gradient(135deg, #C8902A 0%, #F0B429 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.8rem',
+    boxShadow: '0 8px 24px rgba(200,144,42,.4)',
+    flexShrink: 0,
+  },
+  brandName: {
+    fontSize: '2.2rem',
+    fontWeight: 900,
+    color: '#fff',
+    letterSpacing: '-0.02em',
+    lineHeight: 1.1,
+  },
+  brandSpan: { color: '#F0B429' },
+  brandSub: {
+    fontSize: '0.82rem',
+    color: 'rgba(255,255,255,.55)',
+    fontWeight: 500,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    marginTop: '0.15rem',
+  },
+  headline: {
+    fontSize: 'clamp(1.8rem, 3vw, 2.6rem)',
+    fontWeight: 800,
+    color: '#fff',
+    lineHeight: 1.2,
+    marginBottom: '1rem',
+    maxWidth: 480,
+  },
+  headlineAccent: { color: '#F0B429' },
+  tagline: {
+    fontSize: '1.05rem',
+    color: 'rgba(255,255,255,.7)',
+    lineHeight: 1.65,
+    marginBottom: '2.5rem',
+    maxWidth: 440,
+  },
+  features: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '0.875rem',
+    marginBottom: '3rem',
+    maxWidth: 460,
+  },
+  featureCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.65rem',
+    background: 'rgba(255,255,255,.06)',
+    border: '1px solid rgba(255,255,255,.1)',
+    borderRadius: 12,
+    padding: '0.7rem 0.9rem',
+    backdropFilter: 'blur(8px)',
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    background: 'rgba(200,144,42,.25)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#F0B429',
+    fontSize: '0.95rem',
+    flexShrink: 0,
+  },
+  featureText: {
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,.85)',
+    lineHeight: 1.3,
+  },
+  statsRow: {
+    display: 'flex',
+    gap: '2.5rem',
+    flexWrap: 'wrap',
+  },
+  stat: { display: 'flex', flexDirection: 'column', gap: '0.1rem' },
+  statNum: { fontSize: '1.7rem', fontWeight: 900, color: '#F0B429', lineHeight: 1 },
+  statLabel: { fontSize: '0.75rem', color: 'rgba(255,255,255,.5)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' },
+
+  /* ── Right panel ── */
+  right: {
+    flex: '0 0 460px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4rem 3rem',
+    background: 'rgba(255,255,255,.03)',
+    borderLeft: '1px solid rgba(255,255,255,.07)',
+    backdropFilter: 'blur(20px)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    background: '#fff',
+    borderRadius: 24,
+    padding: '2.5rem 2rem',
+    boxShadow: '0 24px 80px rgba(0,0,0,.3)',
+  },
+  cardTop: {
+    textAlign: 'center',
+    marginBottom: '2rem',
+  },
+  cardIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 1rem',
+    boxShadow: '0 8px 24px rgba(11,37,89,.25)',
+  },
+  cardTitle: {
+    fontSize: '1.5rem',
+    fontWeight: 800,
+    color: '#0D1B2A',
+    marginBottom: '0.3rem',
+  },
+  cardSub: {
+    fontSize: '0.875rem',
+    color: '#546278',
+  },
+  /* Error */
+  errorBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.6rem',
+    background: '#FEE2E2',
+    border: '1px solid #FECACA',
+    borderRadius: 12,
+    padding: '0.85rem 1rem',
+    marginBottom: '1.25rem',
+    color: '#DC2626',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+  },
+  /* Form */
+  fieldLabel: {
+    display: 'block',
+    fontSize: '0.8rem',
+    fontWeight: 700,
+    color: '#0D1B2A',
+    marginBottom: '0.45rem',
+    letterSpacing: '0.02em',
+  },
+  fieldWrap: {
+    position: 'relative',
+    marginBottom: '1.1rem',
+  },
+  fieldIcon: {
+    position: 'absolute',
+    left: '0.9rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#8A96A3',
+    fontSize: '1rem',
+    pointerEvents: 'none',
+  },
+  input: {
+    width: '100%',
+    height: 48,
+    padding: '0 1rem 0 2.6rem',
+    borderRadius: 12,
+    border: '1.5px solid #E2D9C8',
+    background: '#FAFAF5',
+    color: '#0D1B2A',
+    fontSize: '0.925rem',
+    fontFamily: "'Nunito', system-ui, sans-serif",
+    fontWeight: 500,
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  inputFocus: {
+    borderColor: '#C8902A',
+    background: '#fff',
+    boxShadow: '0 0 0 3px rgba(200,144,42,.15)',
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: '0.9rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#8A96A3',
+    padding: '0.25rem',
+    borderRadius: 6,
+    display: 'flex',
+    fontSize: '1rem',
+    lineHeight: 1,
+  },
+  metaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '1.5rem',
+    fontSize: '0.82rem',
+  },
+  rememberLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    color: '#546278',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  forgotBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#C8902A',
+    fontWeight: 700,
+    fontSize: '0.82rem',
+    cursor: 'pointer',
+    padding: 0,
+    fontFamily: 'inherit',
+  },
+  submitBtn: {
+    width: '100%',
+    height: 50,
+    borderRadius: 12,
+    border: 'none',
+    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 100%)',
+    color: '#fff',
+    fontSize: '0.975rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.6rem',
+    transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.15s',
+    boxShadow: '0 4px 16px rgba(11,37,89,.3)',
+    fontFamily: 'inherit',
+    letterSpacing: '0.01em',
+  },
+  submitBtnHover: {
+    transform: 'translateY(-1px)',
+    boxShadow: '0 8px 24px rgba(11,37,89,.4)',
+  },
+  submitBtnDisabled: { opacity: 0.6, cursor: 'not-allowed', transform: 'none' },
+  spinner: {
+    width: 18,
+    height: 18,
+    border: '2.5px solid rgba(255,255,255,.3)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    animation: 'spin 0.7s linear infinite',
+  },
+  cardFooter: {
+    textAlign: 'center',
+    marginTop: '1.5rem',
+    fontSize: '0.8rem',
+    color: '#546278',
+    lineHeight: 1.5,
+  },
+  footerLink: {
+    color: '#C8902A',
+    fontWeight: 700,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 'inherit',
+    padding: 0,
+  },
+};
+
+const features = [
+  { icon: FiBook,    label: 'Digital Handbook' },
+  { icon: FiCompass, label: 'Program Pathfinder' },
+  { icon: FiZap,     label: 'AI-Powered Assistant' },
+  { icon: FiUsers,   label: 'Campus Community' },
+];
+
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [showPw, setShowPw]             = useState(false);
+  const [error, setError]               = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [btnHover, setBtnHover]         = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
-  const { login } = useAuth();
-  const clearErrorTimerRef = useRef(null);
+  const { login }            = useAuth();
+  const timerRef             = useRef(null);
 
-  useEffect(() => {
-    // Clear any lingering timer on unmount
-    return () => {
-      if (clearErrorTimerRef.current) {
-        clearTimeout(clearErrorTimerRef.current);
-        clearErrorTimerRef.current = null;
-      }
-    };
-  }, []);
+  useEffect(() => () => timerRef.current && clearTimeout(timerRef.current), []);
 
-  // helper to set error and auto-clear after 5s
-  const showError = (message, timeoutMs = 5000) => {
-    // clear previous timer if any
-    if (clearErrorTimerRef.current) {
-      clearTimeout(clearErrorTimerRef.current);
-      clearErrorTimerRef.current = null;
-    }
-    setError(message);
-    if (timeoutMs > 0) {
-      clearErrorTimerRef.current = setTimeout(() => {
-        setError('');
-        clearErrorTimerRef.current = null;
-      }, timeoutMs);
-    }
+  const showError = (msg) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setError(msg);
+    timerRef.current = setTimeout(() => setError(''), 6000);
   };
 
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // clear previous error and timer immediately when attempting a new submit
-    if (clearErrorTimerRef.current) {
-      clearTimeout(clearErrorTimerRef.current);
-      clearErrorTimerRef.current = null;
-    }
+    if (timerRef.current) clearTimeout(timerRef.current);
     setError('');
     setLoading(true);
-
     try {
       const result = await login(email, password);
       setLoading(false);
-
-      if (!result?.success) {
-        // show error and auto-hide after 5s (keeps old behavior otherwise)
-        showError(result?.message || 'Sign in failed', 5000);
-      }
-      // If success: do not navigate here (old behaviour). PublicOnlyRoute or AuthContext handles redirect.
+      if (!result?.success) showError(result?.message || 'Invalid email or password.');
     } catch (err) {
       setLoading(false);
-      showError(err?.message || 'Unexpected error signing in', 5000);
+      showError(err?.message || 'An unexpected error occurred.');
     }
-  }
+  };
 
-  // Optional: clear error as user types (uncomment if desired)
-  // useEffect(() => {
-  //   if (error) {
-  //     // clear error when user starts changing inputs
-  //     const handler = () => setError('');
-  //     return () => handler();
-  //   }
-  // }, [email, password]);
-
-  // Inline hero animation styles (kept from design; can be moved to CSS)
-  const customStyles = `
-    @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-    }
-    .animate-float { animation: float 3s ease-in-out infinite; }
-    .login-hero-gradient {
-      background: linear-gradient(135deg, 
-        rgba(59,130,246,0.1) 0%,
-        rgba(139,92,246,0.1) 50%,
-        rgba(236,72,153,0.05) 100%);
-    }
-    .dark .login-hero-gradient {
-      background: linear-gradient(135deg, 
-        rgba(30,64,175,0.2) 0%,
-        rgba(109,40,217,0.2) 50%,
-        rgba(190,24,93,0.1) 100%);
-    }
-  `;
+  const inputStyle = (field) => ({
+    ...S.input,
+    ...(focusedField === field ? S.inputFocus : {}),
+  });
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <style>{customStyles}</style>
+    <div style={S.page}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .login-left  { animation: fadeUp 0.55s cubic-bezier(.4,0,.2,1) both; }
+        .login-right { animation: fadeUp 0.55s 0.15s cubic-bezier(.4,0,.2,1) both; }
+        @media (max-width: 900px) {
+          .login-left  { display: none !important; }
+          .login-right {
+            flex: 1 !important;
+            padding: 5rem 1.5rem 3rem !important;
+            border-left: none !important;
+            background: transparent !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .login-card { padding: 2rem 1.25rem !important; }
+        }
+      `}</style>
 
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Brand & Features (keeps new look) */}
-        <div className="space-y-8 animate-fade-in-up">
-          <div className="login-hero-gradient rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-xl">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white flex items-center justify-center shadow-2xl animate-float">
-                <FiBook className="text-2xl" />
+      {/* Kente top stripe */}
+      <div style={S.kenteTop} aria-hidden="true" />
+
+      {/* Adinkra background pattern */}
+      <div style={S.bgPattern} aria-hidden="true" />
+
+      <div style={S.wrap}>
+        {/* ── Left branding panel ── */}
+        <div style={S.left} className="login-left">
+          <div style={S.leftBadge}>
+            <span>🎓</span> PKFokam Institute of Excellence
+          </div>
+
+          <div style={S.brandRow}>
+            <div style={S.brandIcon} aria-hidden="true">🎓</div>
+            <div>
+              <div style={S.brandName}>
+                PKF<span style={S.brandSpan}>Connect</span>
               </div>
-              <div>
-                <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">
-                  PKF<span className="text-blue-600">Connect</span>
-                </h1>
-                <p className="text-slate-600 dark:text-slate-400 mt-1">Student & Faculty Portal</p>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                Welcome back to your <span className="text-blue-600">academic hub</span>
-              </h2>
-
-              <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Access your courses, connect with peers, and explore everything PKFokam Institute has to offer.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600">
-                  <FiAward className="w-5 h-5 text-green-500" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Academic Excellence</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600">
-                  <FiUsers className="w-5 h-5 text-blue-500" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Community Network</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600">
-                  <FiCheckCircle className="w-5 h-5 text-purple-500" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Verified Platform</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-600">
-                  <FiBook className="w-5 h-5 text-orange-500" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Learning Resources</span>
-                </div>
-              </div>
+              <div style={S.brandSub}>Student & Faculty Portal</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">2,500+</div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Active Students</div>
+          <h1 style={S.headline}>
+            Your gateway to <span style={S.headlineAccent}>academic excellence</span> at PKFokam
+          </h1>
+
+          <p style={S.tagline}>
+            Access resources, connect with peers, get AI-powered answers,
+            and explore everything the Institute has to offer — all in one place.
+          </p>
+
+          <div style={S.features} role="list">
+            {features.map(({ icon: Icon, label }) => (
+              <div key={label} style={S.featureCard} role="listitem">
+                <div style={S.featureIcon} aria-hidden="true">
+                  <Icon size={16} />
+                </div>
+                <span style={S.featureText}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={S.statsRow} aria-label="Platform statistics">
+            <div style={S.stat}>
+              <span style={S.statNum}>2 500+</span>
+              <span style={S.statLabel}>Students</span>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">150+</div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Courses</div>
+            <div style={S.stat}>
+              <span style={S.statNum}>128+</span>
+              <span style={S.statLabel}>Resources</span>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-lg">
-              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">24/7</div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Support</div>
+            <div style={S.stat}>
+              <span style={S.statNum}>24/7</span>
+              <span style={S.statLabel}>AI Support</span>
             </div>
           </div>
         </div>
 
-        {/* Right Side - Login Form (keeps new visuals, restores old auth flow) */}
-        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-2xl">
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white flex items-center justify-center shadow-lg mx-auto mb-4">
-                <FiUser className="text-2xl" />
+        {/* ── Right login form ── */}
+        <div style={S.right} className="login-right">
+          <div style={S.card} className="login-card">
+            {/* Card header */}
+            <div style={S.cardTop}>
+              <div style={S.cardIconWrap} aria-hidden="true">
+                <FiMail size={24} color="#F0B429" />
               </div>
-              <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Welcome Back</h2>
-              <p className="text-slate-600 dark:text-slate-400">Sign in to your PKFIE-Hub account</p>
+              <h2 style={S.cardTitle}>Welcome back</h2>
+              <p style={S.cardSub}>Sign in to your PKFConnect account</p>
             </div>
 
+            {/* Error */}
             {error && (
-              <div role="alert" aria-live="assertive" className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-medium">
-                <div className="flex items-center gap-2">
-                  <FiCheckCircle className="w-4 h-4" />
-                  <span>{error}</span>
-                </div>
+              <div style={S.errorBox} role="alert" aria-live="assertive">
+                <FiAlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
+                <span>{error}</span>
               </div>
             )}
 
-            <form className="space-y-6" onSubmit={handleSubmit} noValidate autoComplete="off">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Email Address</label>
-                <div className="relative">
-                  <FiMail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    placeholder="Enter your email"
-                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    disabled={loading}
-                  />
-                </div>
+            <form onSubmit={handleSubmit} noValidate autoComplete="off">
+              {/* Email */}
+              <label style={S.fieldLabel} htmlFor="login-email">
+                Email address
+              </label>
+              <div style={S.fieldWrap}>
+                <FiMail style={S.fieldIcon} aria-hidden="true" />
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                  style={inputStyle('email')}
+                  placeholder="you@pkfokam.edu"
+                  required
+                  disabled={loading}
+                  aria-required="true"
+                />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Password</label>
-                <div className="relative">
-                  <FiLock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter your password"
-                    className="w-full pl-12 pr-12 py-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    disabled={loading}
-                  >
-                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                  </button>
-                </div>
+              {/* Password */}
+              <label style={S.fieldLabel} htmlFor="login-password">
+                Password
+              </label>
+              <div style={S.fieldWrap}>
+                <FiLock style={S.fieldIcon} aria-hidden="true" />
+                <input
+                  id="login-password"
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
+                  style={{ ...inputStyle('password'), paddingRight: '2.8rem' }}
+                  placeholder="Enter your password"
+                  required
+                  disabled={loading}
+                  aria-required="true"
+                />
+                <button
+                  type="button"
+                  style={S.eyeBtn}
+                  onClick={() => setShowPw(v => !v)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  disabled={loading}
+                >
+                  {showPw ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                </button>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" disabled={loading} />
+              {/* Remember + forgot */}
+              <div style={S.metaRow}>
+                <label style={S.rememberLabel}>
+                  <input type="checkbox" disabled={loading} style={{ accentColor: '#C8902A' }} />
                   Remember me
                 </label>
-                <button type="button" className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors" disabled={loading}>
+                <button type="button" style={S.forgotBtn} disabled={loading}>
                   Forgot password?
                 </button>
               </div>
 
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                style={{
+                  ...S.submitBtn,
+                  ...(btnHover && !loading ? S.submitBtnHover : {}),
+                  ...(loading ? S.submitBtnDisabled : {}),
+                }}
+                onMouseEnter={() => setBtnHover(true)}
+                onMouseLeave={() => setBtnHover(false)}
               >
                 {loading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Signing in...
+                    <div style={S.spinner} aria-hidden="true" />
+                    Signing in…
                   </>
                 ) : (
                   <>
                     Sign In
-                    <FiArrowRight className="w-5 h-5" />
+                    <FiArrowRight size={18} aria-hidden="true" />
                   </>
                 )}
               </button>
             </form>
 
-            <div className="my-6 flex items-center">
-              <div className="flex-1 border-t border-slate-200 dark:border-slate-700" />
-              <span className="px-4 text-sm text-slate-500 dark:text-slate-400">or</span>
-              <div className="flex-1 border-t border-slate-200 dark:border-slate-700" />
-            </div>
-
-            <div className="space-y-4 text-center">
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Don't have an account?{' '}
-                <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold transition-colors">
-                  Contact Admissions
-                </button>
+            <div style={S.cardFooter}>
+              <p>
+                No account?{' '}
+                <button style={S.footerLink} type="button">Contact Admissions</button>
               </p>
-
-              <div className="flex gap-3 justify-center">
-                <button className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
-                  <FiUser className="w-5 h-5" />
-                </button>
-                <button className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
-                  <FiBook className="w-5 h-5" />
-                </button>
-                <button className="p-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
-                  <FiAward className="w-5 h-5" />
-                </button>
-              </div>
+              <p style={{ marginTop: '0.9rem', fontSize: '0.72rem', color: '#8A96A3' }}>
+                © {new Date().getFullYear()} PKFe-Hub · PKFokam Institute of Excellence
+              </p>
             </div>
-          </div>
-
-          <div className="mt-6 text-center">
-            <p className="text-xs text-slate-500 dark:text-slate-400">© {new Date().getFullYear()} PKFIE-Hub — PKFokam Institute of Excellence</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Secure authentication powered by PKFokam</p>
           </div>
         </div>
       </div>

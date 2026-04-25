@@ -22,15 +22,21 @@ import ProgramDetail from './pages/main/ProgramDetail';
 import SearchResults from './pages/main/SearchResults';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AdminSearchResults from './pages/admin/AdminSearchResults';
-import CampusShowcase from './pages/main/CampusShowcase'; // <-- The new, modern gallery page
+import CampusShowcase from './pages/main/CampusShowcase';
 import AdminNotifications from './pages/admin/AdminNotifications';
+import NotFound from './pages/NotFound/NotFound';
 import './App.css';
 
 // ProtectedRoute implementation for role-based protection
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0B2559' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid rgba(200,144,42,.3)', borderTopColor: '#C8902A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   if (requireAdmin && !isAdmin) return <Navigate to="/" replace />;
   return children;
@@ -40,7 +46,12 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0B2559' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid rgba(200,144,42,.3)', borderTopColor: '#C8902A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
   if (isAuthenticated) {
     // send admins to /admin and normal users to main app
     if (isAdmin) return <Navigate to="/admin" replace />;
@@ -179,7 +190,7 @@ function App() {
           </Route>
 
           {/* Fallback: 404 */}
-          <Route path="*" element={<div>404 Not Found</div>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
     </AuthProvider>

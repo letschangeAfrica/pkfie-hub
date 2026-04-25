@@ -1,47 +1,200 @@
+/* =========================================================
+   PKFokam Institute of Excellence — Design System v2
+   Primary: Deep Navy + Warm African Gold
+   WCAG AA compliant contrast ratios throughout
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@600;700&display=swap');
+
 :root {
-    --color-blue: #003366;
-    --color-gold: #FFD700;
-    --color-black: #000000;
-    --color-white: #F8F4E3;
-    --color-gray: #808080;
-    --color-brown: #8B4513;
-    --color-light-blue: #E6F0FF;
-    --color-light-gold: #FFF9E6;
-    --color-warm-beige: #F5E9D7;
-    --color-warm-brown: #A0522D;
-    --color-warm-yellow: #F0E68C;
-    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --transition: all 0.3s ease;
+  /* ── Brand palette ────────────────────────────────────── */
+  --pkfe-navy:        #0B2559;   /* PKFokam Deep Navy   */
+  --pkfe-navy-90:     #0d2b65;
+  --pkfe-navy-lt:     #1A4080;   /* Hover / lighter navy */
+  --pkfe-gold:        #C8902A;   /* Warm African Gold   */
+  --pkfe-gold-lt:     #F0B429;   /* Light Gold          */
+  --pkfe-gold-pale:   #FEF3C7;   /* Gold tint surface   */
+  --pkfe-green:       #1A6B3A;   /* African Forest Green accent */
+  --pkfe-red-kente:   #8B1A1A;   /* Kente Red accent    */
+
+  /* ── Neutral surface ──────────────────────────────────── */
+  --pkfe-ivory:       #FAFAF5;   /* Page background     */
+  --pkfe-surface:     #FFFFFF;   /* Card / component    */
+  --pkfe-surface-2:   #F4F1E8;   /* Secondary surface   */
+  --pkfe-border:      #E2D9C8;   /* Warm border         */
+  --pkfe-border-soft: #EDE8DC;
+
+  /* ── Text ─────────────────────────────────────────────── */
+  --pkfe-text:        #0D1B2A;   /* Primary — 15.9:1 on ivory */
+  --pkfe-text-muted:  #546278;   /* Secondary — 6.4:1 on white */
+  --pkfe-text-light:  #8A96A3;   /* Tertiary  */
+  --pkfe-text-inv:    #FFFFFF;   /* On dark backgrounds */
+
+  /* ── Semantic ─────────────────────────────────────────── */
+  --pkfe-success:     #15803D;
+  --pkfe-success-bg:  #DCFCE7;
+  --pkfe-warning:     #D97706;
+  --pkfe-warning-bg:  #FEF3C7;
+  --pkfe-error:       #DC2626;
+  --pkfe-error-bg:    #FEE2E2;
+  --pkfe-info:        #1D4ED8;
+  --pkfe-info-bg:     #DBEAFE;
+
+  /* ── Tokens ───────────────────────────────────────────── */
+  --shadow-xs:   0 1px 3px rgba(11,37,89,.08);
+  --shadow-sm:   0 2px 8px rgba(11,37,89,.10);
+  --shadow-md:   0 4px 16px rgba(11,37,89,.12);
+  --shadow-lg:   0 8px 32px rgba(11,37,89,.14);
+  --shadow-xl:   0 16px 48px rgba(11,37,89,.18);
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  --transition: all 0.22s cubic-bezier(.4,0,.2,1);
+  --transition-fast: all 0.14s ease;
+
+  /* ── Sidebar ──────────────────────────────────────────── */
+  --sidebar-w:     260px;
+  --sidebar-bg:    var(--pkfe-navy);
+  --sidebar-text:  rgba(255,255,255,0.88);
+  --sidebar-active-bg: var(--pkfe-gold);
+  --sidebar-active-text: var(--pkfe-navy);
+  --sidebar-hover-bg: rgba(200,144,42,.18);
+
+  /* Backwards-compat aliases (old CSS still uses these) */
+  --color-blue:        var(--pkfe-navy);
+  --color-gold:        var(--pkfe-gold);
+  --color-black:       var(--pkfe-text);
+  --color-white:       var(--pkfe-surface);
+  --color-gray:        var(--pkfe-text-muted);
+  --color-brown:       #7C5535;
+  --color-light-blue:  #E8EFF8;
+  --color-light-gold:  var(--pkfe-gold-pale);
+  --color-warm-beige:  var(--pkfe-ivory);
+  --color-warm-brown:  #A0522D;
+  --color-warm-yellow: var(--pkfe-gold-lt);
+  --shadow:            var(--shadow-sm);
+  --transition-old:    var(--transition);
 }
 
+/* ── Dark theme ─────────────────────────────────────────── */
 [data-theme="dark"] {
-    --color-blue: #7bb6ff;
-    --color-gold: #ffe066;
-    --color-black: #F8F4E3;
-    --color-white: #23232a;
-    --color-gray: #bfc8d2;
-    --color-brown: #a77c4d;
-    --color-light-blue: #21314a;
-    --color-light-gold: #2a2a19;
-    --color-warm-beige: #23232a; /* main background */
-    --color-warm-brown: #a77c4d;
-    --color-warm-yellow: #d1c45c;
-    --shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --pkfe-ivory:       #0D1626;
+  --pkfe-surface:     #111D33;
+  --pkfe-surface-2:   #162040;
+  --pkfe-border:      #1E3056;
+  --pkfe-border-soft: #1A2B4A;
+  --pkfe-text:        #E8EEF6;
+  --pkfe-text-muted:  #8FA8C4;
+  --pkfe-text-light:  #6B8BAD;
+  --pkfe-gold:        #F0B429;
+  --pkfe-gold-pale:   #1C1A09;
+  --shadow-md:        0 4px 20px rgba(0,0,0,.32);
+
+  --color-blue:       #7bb6ff;
+  --color-gold:       #ffe066;
+  --color-black:      var(--pkfe-text);
+  --color-white:      var(--pkfe-surface);
+  --color-gray:       var(--pkfe-text-muted);
+  --color-light-blue: #162040;
+  --color-light-gold: #1C1A09;
+  --color-warm-beige: var(--pkfe-ivory);
+  --shadow:           0 4px 20px rgba(0,0,0,.32);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Nunito', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+/* ── Global reset ────────────────────────────────────────── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
-    background-color: var(--color-warm-beige);
-    color: var(--color-black);
-    line-height: 1.6;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    transition: var(--transition);
+  font-family: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--pkfe-ivory);
+  color: var(--pkfe-text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* ── Skip-to-content (WCAG keyboard nav) ──────────────────── */
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pkfe-gold);
+  color: var(--pkfe-navy);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  z-index: 9999;
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid var(--pkfe-navy);
+  outline-offset: 2px;
+}
+
+/* ── Focus ring (WCAG 2.4.7) ─────────────────────────────── */
+:focus-visible {
+  outline: 3px solid var(--pkfe-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── Kente stripe utility ─────────────────────────────────── */
+.kente-stripe {
+  height: 6px;
+  width: 100%;
+  flex-shrink: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #C8902A  0px, #C8902A  18px,
+    #0B2559 18px, #0B2559  34px,
+    #1A6B3A 34px, #1A6B3A  50px,
+    #FFD700 50px, #FFD700  60px,
+    #8B1A1A 60px, #8B1A1A  70px,
+    #FFD700 70px, #FFD700  80px,
+    #1A6B3A 80px, #1A6B3A  96px,
+    #0B2559 96px, #0B2559 112px,
+    #C8902A112px, #C8902A 130px
+  );
+}
+
+/* ── Adinkra diamond motif (decorative) ──────────────────── */
+.adinkra-bg {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(200,144,42,.06) 0, rgba(200,144,42,.06) 1px,
+      transparent 0, transparent 50%
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(200,144,42,.06) 0, rgba(200,144,42,.06) 1px,
+      transparent 0, transparent 50%
+    );
+  background-size: 24px 24px;
+}
+
+/* ── Typography helpers ───────────────────────────────────── */
+.display-font { font-family: 'Playfair Display', Georgia, serif; }
+.text-pkfe-gold { color: var(--pkfe-gold); }
+.text-pkfe-navy { color: var(--pkfe-navy); }
+.bg-pkfe-navy   { background-color: var(--pkfe-navy); }
+.bg-pkfe-gold   { background-color: var(--pkfe-gold); }

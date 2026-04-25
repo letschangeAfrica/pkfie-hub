@@ -6,10 +6,18 @@ module.exports = {
     extend: {
       colors: {
         pkfe: {
-          blue: 'var(--color-blue)',
-          gold: 'var(--color-gold)',
-          ivory: 'var(--color-white)',
-          warmBeige: 'var(--color-warm-beige)'
+          navy:    '#0B2559',
+          navyLt:  '#1A4080',
+          blue:    '#2563EB',
+          gold:    '#C8902A',
+          goldLt:  '#F0B429',
+          goldPale:'#FEF3C7',
+          green:   '#1A6B3A',
+          ivory:   '#FAFAF5',
+          surface: '#FFFFFF',
+          border:  '#E2D9C8',
+          text:    '#0D1B2A',
+          muted:   '#546278',
         }
       },
       boxShadow: {
