@@ -2,354 +2,51 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   FiMail, FiLock, FiArrowRight, FiEye, FiEyeOff,
-  FiAlertCircle, FiBook, FiCompass, FiZap, FiUsers
+  FiAlertCircle, FiBook, FiCompass, FiZap, FiUsers,
+  FiShield, FiAward, FiClock,
 } from 'react-icons/fi';
+import PKFLogo from '../../components/PKFLogo';
 
-/* ── Inline styles (no external CSS dependency) ─────────── */
-const S = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 60%, #0B2559 100%)',
-    position: 'relative',
-    overflow: 'hidden',
-    fontFamily: "'Nunito', 'Segoe UI', system-ui, sans-serif",
-  },
-  /* Adinkra diamond background pattern */
-  bgPattern: {
-    position: 'absolute',
-    inset: 0,
-    backgroundImage: `
-      repeating-linear-gradient(45deg, rgba(200,144,42,.07) 0, rgba(200,144,42,.07) 1px, transparent 0, transparent 50%),
-      repeating-linear-gradient(-45deg, rgba(200,144,42,.07) 0, rgba(200,144,42,.07) 1px, transparent 0, transparent 50%)
-    `,
-    backgroundSize: '32px 32px',
-    pointerEvents: 'none',
-  },
-  /* Kente stripe at very top */
-  kenteTop: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    height: 7,
-    background: 'repeating-linear-gradient(90deg,#C8902A 0,#C8902A 18px,#0B2559 18px,#0B2559 34px,#1A6B3A 34px,#1A6B3A 50px,#FFD700 50px,#FFD700 60px,#8B1A1A 60px,#8B1A1A 70px,#FFD700 70px,#FFD700 80px,#1A6B3A 80px,#1A6B3A 96px,#0B2559 96px,#0B2559 112px,#C8902A 112px,#C8902A 130px)',
-    zIndex: 10,
-  },
-  wrap: {
-    display: 'flex',
-    width: '100%',
-    minHeight: '100vh',
-    position: 'relative',
-    zIndex: 1,
-  },
-  /* ── Left panel ── */
-  left: {
-    flex: '1 1 52%',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    padding: '5rem 4rem 4rem',
-    color: '#fff',
-  },
-  leftBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    background: 'rgba(200,144,42,.18)',
-    border: '1px solid rgba(200,144,42,.4)',
-    borderRadius: 99,
-    padding: '0.35rem 1rem',
-    fontSize: '0.78rem',
-    fontWeight: 700,
-    color: '#F0B429',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    marginBottom: '2rem',
-    width: 'fit-content',
-  },
-  brandRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '1.1rem',
-    marginBottom: '1.5rem',
-  },
-  brandIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    background: 'linear-gradient(135deg, #C8902A 0%, #F0B429 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '1.8rem',
-    boxShadow: '0 8px 24px rgba(200,144,42,.4)',
-    flexShrink: 0,
-  },
-  brandName: {
-    fontSize: '2.2rem',
-    fontWeight: 900,
-    color: '#fff',
-    letterSpacing: '-0.02em',
-    lineHeight: 1.1,
-  },
-  brandSpan: { color: '#F0B429' },
-  brandSub: {
-    fontSize: '0.82rem',
-    color: 'rgba(255,255,255,.55)',
-    fontWeight: 500,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    marginTop: '0.15rem',
-  },
-  headline: {
-    fontSize: 'clamp(1.8rem, 3vw, 2.6rem)',
-    fontWeight: 800,
-    color: '#fff',
-    lineHeight: 1.2,
-    marginBottom: '1rem',
-    maxWidth: 480,
-  },
-  headlineAccent: { color: '#F0B429' },
-  tagline: {
-    fontSize: '1.05rem',
-    color: 'rgba(255,255,255,.7)',
-    lineHeight: 1.65,
-    marginBottom: '2.5rem',
-    maxWidth: 440,
-  },
-  features: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '0.875rem',
-    marginBottom: '3rem',
-    maxWidth: 460,
-  },
-  featureCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.65rem',
-    background: 'rgba(255,255,255,.06)',
-    border: '1px solid rgba(255,255,255,.1)',
-    borderRadius: 12,
-    padding: '0.7rem 0.9rem',
-    backdropFilter: 'blur(8px)',
-  },
-  featureIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    background: 'rgba(200,144,42,.25)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#F0B429',
-    fontSize: '0.95rem',
-    flexShrink: 0,
-  },
-  featureText: {
-    fontSize: '0.82rem',
-    fontWeight: 600,
-    color: 'rgba(255,255,255,.85)',
-    lineHeight: 1.3,
-  },
-  statsRow: {
-    display: 'flex',
-    gap: '2.5rem',
-    flexWrap: 'wrap',
-  },
-  stat: { display: 'flex', flexDirection: 'column', gap: '0.1rem' },
-  statNum: { fontSize: '1.7rem', fontWeight: 900, color: '#F0B429', lineHeight: 1 },
-  statLabel: { fontSize: '0.75rem', color: 'rgba(255,255,255,.5)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' },
+/* ── Floating orb SVG decoration ───────────────────────────── */
+const Orb = ({ className }) => (
+  <div
+    aria-hidden="true"
+    className={`absolute rounded-full pointer-events-none ${className}`}
+  />
+);
 
-  /* ── Right panel ── */
-  right: {
-    flex: '0 0 460px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '4rem 3rem',
-    background: 'rgba(255,255,255,.03)',
-    borderLeft: '1px solid rgba(255,255,255,.07)',
-    backdropFilter: 'blur(20px)',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 400,
-    background: '#fff',
-    borderRadius: 24,
-    padding: '2.5rem 2rem',
-    boxShadow: '0 24px 80px rgba(0,0,0,.3)',
-  },
-  cardTop: {
-    textAlign: 'center',
-    marginBottom: '2rem',
-  },
-  cardIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 1rem',
-    boxShadow: '0 8px 24px rgba(11,37,89,.25)',
-  },
-  cardTitle: {
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    color: '#0D1B2A',
-    marginBottom: '0.3rem',
-  },
-  cardSub: {
-    fontSize: '0.875rem',
-    color: '#546278',
-  },
-  /* Error */
-  errorBox: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.6rem',
-    background: '#FEE2E2',
-    border: '1px solid #FECACA',
-    borderRadius: 12,
-    padding: '0.85rem 1rem',
-    marginBottom: '1.25rem',
-    color: '#DC2626',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-  },
-  /* Form */
-  fieldLabel: {
-    display: 'block',
-    fontSize: '0.8rem',
-    fontWeight: 700,
-    color: '#0D1B2A',
-    marginBottom: '0.45rem',
-    letterSpacing: '0.02em',
-  },
-  fieldWrap: {
-    position: 'relative',
-    marginBottom: '1.1rem',
-  },
-  fieldIcon: {
-    position: 'absolute',
-    left: '0.9rem',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    color: '#8A96A3',
-    fontSize: '1rem',
-    pointerEvents: 'none',
-  },
-  input: {
-    width: '100%',
-    height: 48,
-    padding: '0 1rem 0 2.6rem',
-    borderRadius: 12,
-    border: '1.5px solid #E2D9C8',
-    background: '#FAFAF5',
-    color: '#0D1B2A',
-    fontSize: '0.925rem',
-    fontFamily: "'Nunito', system-ui, sans-serif",
-    fontWeight: 500,
-    transition: 'border-color 0.15s, box-shadow 0.15s',
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  inputFocus: {
-    borderColor: '#C8902A',
-    background: '#fff',
-    boxShadow: '0 0 0 3px rgba(200,144,42,.15)',
-  },
-  eyeBtn: {
-    position: 'absolute',
-    right: '0.9rem',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: '#8A96A3',
-    padding: '0.25rem',
-    borderRadius: 6,
-    display: 'flex',
-    fontSize: '1rem',
-    lineHeight: 1,
-  },
-  metaRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '1.5rem',
-    fontSize: '0.82rem',
-  },
-  rememberLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    color: '#546278',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  forgotBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#C8902A',
-    fontWeight: 700,
-    fontSize: '0.82rem',
-    cursor: 'pointer',
-    padding: 0,
-    fontFamily: 'inherit',
-  },
-  submitBtn: {
-    width: '100%',
-    height: 50,
-    borderRadius: 12,
-    border: 'none',
-    background: 'linear-gradient(135deg, #0B2559 0%, #1A4080 100%)',
-    color: '#fff',
-    fontSize: '0.975rem',
-    fontWeight: 800,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.6rem',
-    transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.15s',
-    boxShadow: '0 4px 16px rgba(11,37,89,.3)',
-    fontFamily: 'inherit',
-    letterSpacing: '0.01em',
-  },
-  submitBtnHover: {
-    transform: 'translateY(-1px)',
-    boxShadow: '0 8px 24px rgba(11,37,89,.4)',
-  },
-  submitBtnDisabled: { opacity: 0.6, cursor: 'not-allowed', transform: 'none' },
-  spinner: {
-    width: 18,
-    height: 18,
-    border: '2.5px solid rgba(255,255,255,.3)',
-    borderTopColor: '#fff',
-    borderRadius: '50%',
-    animation: 'spin 0.7s linear infinite',
-  },
-  cardFooter: {
-    textAlign: 'center',
-    marginTop: '1.5rem',
-    fontSize: '0.8rem',
-    color: '#546278',
-    lineHeight: 1.5,
-  },
-  footerLink: {
-    color: '#C8902A',
-    fontWeight: 700,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    fontSize: 'inherit',
-    padding: 0,
-  },
-};
+/* ── Feature pill ───────────────────────────────────────────── */
+const Feature = ({ icon: Icon, label, delay }) => (
+  <div
+    style={{ animationDelay: delay }}
+    className="animate-fade-up flex items-center gap-3 px-4 py-3 rounded-2xl
+      bg-white/5 border border-white/10 backdrop-blur-sm
+      hover:bg-white/10 hover:border-gold/30 transition-all duration-300 group"
+  >
+    <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-gold/20 flex items-center justify-center
+      text-gold group-hover:bg-gold/30 transition-colors">
+      <Icon size={15} aria-hidden="true" />
+    </span>
+    <span className="text-xs font-semibold text-white/80 group-hover:text-white transition-colors">
+      {label}
+    </span>
+  </div>
+);
+
+/* ── Stat block ─────────────────────────────────────────────── */
+const Stat = ({ value, label, delay }) => (
+  <div
+    style={{ animationDelay: delay }}
+    className="animate-fade-up flex flex-col gap-0.5"
+  >
+    <span className="text-3xl font-black text-gold leading-none animate-glow-text">
+      {value}
+    </span>
+    <span className="text-[10px] font-bold tracking-widest uppercase text-white/40">
+      {label}
+    </span>
+  </div>
+);
 
 const features = [
   { icon: FiBook,    label: 'Digital Handbook' },
@@ -359,16 +56,14 @@ const features = [
 ];
 
 export default function Login() {
-  const [email, setEmail]               = useState('');
-  const [password, setPassword]         = useState('');
-  const [showPw, setShowPw]             = useState(false);
-  const [error, setError]               = useState('');
-  const [loading, setLoading]           = useState(false);
-  const [btnHover, setBtnHover]         = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw,   setShowPw]   = useState(false);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
 
-  const { login }            = useAuth();
-  const timerRef             = useRef(null);
+  const { login }  = useAuth();
+  const timerRef   = useRef(null);
 
   useEffect(() => () => timerRef.current && clearTimeout(timerRef.current), []);
 
@@ -393,215 +88,311 @@ export default function Login() {
     }
   };
 
-  const inputStyle = (field) => ({
-    ...S.input,
-    ...(focusedField === field ? S.inputFocus : {}),
-  });
-
   return (
-    <div style={S.page}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .login-left  { animation: fadeUp 0.55s cubic-bezier(.4,0,.2,1) both; }
-        .login-right { animation: fadeUp 0.55s 0.15s cubic-bezier(.4,0,.2,1) both; }
-        @media (max-width: 900px) {
-          .login-left  { display: none !important; }
-          .login-right {
-            flex: 1 !important;
-            padding: 5rem 1.5rem 3rem !important;
-            border-left: none !important;
-            background: transparent !important;
-          }
-        }
-        @media (max-width: 480px) {
-          .login-card { padding: 2rem 1.25rem !important; }
-        }
-      `}</style>
+    <div className="relative min-h-screen flex overflow-hidden bg-navy-gradient font-sans">
 
-      {/* Kente top stripe */}
-      <div style={S.kenteTop} aria-hidden="true" />
+      {/* Kente stripe */}
+      <div className="kente-stripe absolute top-0 left-0 right-0 z-10 h-[7px]" aria-hidden="true" />
 
-      {/* Adinkra background pattern */}
-      <div style={S.bgPattern} aria-hidden="true" />
+      {/* Atmospheric orbs */}
+      <Orb className="w-[480px] h-[480px] bg-gold/5 blur-[120px] -top-32 -left-24 animate-float" />
+      <Orb className="w-[360px] h-[360px] bg-navy-500/30 blur-[100px] bottom-0 right-[40%] animate-float-reverse" />
+      <Orb className="w-[280px] h-[280px] bg-gold/8 blur-[80px] top-1/2 right-8 animate-float" />
 
-      <div style={S.wrap}>
-        {/* ── Left branding panel ── */}
-        <div style={S.left} className="login-left">
-          <div style={S.leftBadge}>
-            <span>🎓</span> PKFokam Institute of Excellence
-          </div>
+      {/* Adinkra diamond pattern overlay */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none opacity-40"
+        style={{
+          backgroundImage: `
+            repeating-linear-gradient(45deg, rgba(255,215,0,.04) 0, rgba(255,215,0,.04) 1px, transparent 0, transparent 50%),
+            repeating-linear-gradient(-45deg, rgba(255,215,0,.04) 0, rgba(255,215,0,.04) 1px, transparent 0, transparent 50%)
+          `,
+          backgroundSize: '32px 32px',
+        }}
+      />
 
-          <div style={S.brandRow}>
-            <div style={S.brandIcon} aria-hidden="true">🎓</div>
-            <div>
-              <div style={S.brandName}>
-                PKF<span style={S.brandSpan}>Connect</span>
-              </div>
-              <div style={S.brandSub}>Student & Faculty Portal</div>
+      {/* ── Left branding panel ─────────────────────────────── */}
+      <div className="hidden lg:flex flex-col justify-center flex-1 px-16 py-20 relative z-[1]">
+        {/* Institute badge */}
+        <div className="animate-fade-up flex items-center gap-2 mb-10 w-fit
+          px-4 py-1.5 rounded-full border border-gold/30 bg-gold/10 backdrop-blur-sm">
+          <FiAward size={13} className="text-gold" aria-hidden="true" />
+          <span className="text-[11px] font-black tracking-widest uppercase text-gold">
+            PKFokam Institute of Excellence
+          </span>
+        </div>
+
+        {/* Brand lockup */}
+        <div className="animate-slide-left flex items-center gap-4 mb-8" style={{ animationDelay: '60ms' }}>
+          <div className="relative flex-shrink-0">
+            <div className="absolute inset-0 rounded-full bg-gold/20 blur-md animate-glow" />
+            <div className="relative bg-navy-800 rounded-2xl p-3 ring-2 ring-gold/30 shadow-gold-md">
+              <PKFLogo size={48} />
             </div>
           </div>
-
-          <h1 style={S.headline}>
-            Your gateway to <span style={S.headlineAccent}>academic excellence</span> at PKFokam
-          </h1>
-
-          <p style={S.tagline}>
-            Access resources, connect with peers, get AI-powered answers,
-            and explore everything the Institute has to offer — all in one place.
-          </p>
-
-          <div style={S.features} role="list">
-            {features.map(({ icon: Icon, label }) => (
-              <div key={label} style={S.featureCard} role="listitem">
-                <div style={S.featureIcon} aria-hidden="true">
-                  <Icon size={16} />
-                </div>
-                <span style={S.featureText}>{label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={S.statsRow} aria-label="Platform statistics">
-            <div style={S.stat}>
-              <span style={S.statNum}>2 500+</span>
-              <span style={S.statLabel}>Students</span>
-            </div>
-            <div style={S.stat}>
-              <span style={S.statNum}>128+</span>
-              <span style={S.statLabel}>Resources</span>
-            </div>
-            <div style={S.stat}>
-              <span style={S.statNum}>24/7</span>
-              <span style={S.statLabel}>AI Support</span>
-            </div>
+          <div>
+            <p className="text-4xl font-black text-white leading-none tracking-tight">
+              PKF<span className="text-gold">Connect</span>
+            </p>
+            <p className="text-xs font-bold tracking-widest uppercase text-white/40 mt-1">
+              Student &amp; Faculty Portal
+            </p>
           </div>
         </div>
 
-        {/* ── Right login form ── */}
-        <div style={S.right} className="login-right">
-          <div style={S.card} className="login-card">
-            {/* Card header */}
-            <div style={S.cardTop}>
-              <div style={S.cardIconWrap} aria-hidden="true">
-                <FiMail size={24} color="#F0B429" />
-              </div>
-              <h2 style={S.cardTitle}>Welcome back</h2>
-              <p style={S.cardSub}>Sign in to your PKFConnect account</p>
-            </div>
+        {/* Headline */}
+        <h1
+          className="animate-fade-up text-white font-display font-black leading-tight mb-5"
+          style={{ fontSize: 'clamp(1.9rem, 2.8vw, 2.8rem)', animationDelay: '100ms' }}
+        >
+          Your gateway to{' '}
+          <span className="text-gold animate-glow-text">academic excellence</span>
+          <br />at PKFokam
+        </h1>
 
-            {/* Error */}
-            {error && (
-              <div style={S.errorBox} role="alert" aria-live="assertive">
-                <FiAlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
-                <span>{error}</span>
-              </div>
-            )}
+        <p className="animate-fade-up text-white/60 text-base leading-relaxed mb-10 max-w-md"
+           style={{ animationDelay: '140ms' }}>
+          Access resources, connect with peers, get AI-powered answers,
+          and explore everything the Institute has to offer — all in one place.
+        </p>
 
-            <form onSubmit={handleSubmit} noValidate autoComplete="off">
-              {/* Email */}
-              <label style={S.fieldLabel} htmlFor="login-email">
-                Email address
-              </label>
-              <div style={S.fieldWrap}>
-                <FiMail style={S.fieldIcon} aria-hidden="true" />
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                  style={inputStyle('email')}
-                  placeholder="you@pkfokam.edu"
-                  required
-                  disabled={loading}
-                  aria-required="true"
-                />
+        {/* Feature grid */}
+        <div className="grid grid-cols-2 gap-3 mb-12 max-w-md">
+          {features.map(({ icon, label }, i) => (
+            <Feature key={label} icon={icon} label={label} delay={`${180 + i * 50}ms`} />
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-end gap-10" aria-label="Platform statistics">
+          <Stat value="2 500+" label="Students"  delay="380ms" />
+          <Stat value="128+"   label="Resources" delay="420ms" />
+          <Stat value="24 / 7" label="AI Support" delay="460ms" />
+        </div>
+      </div>
+
+      {/* Vertical divider */}
+      <div
+        aria-hidden="true"
+        className="hidden lg:block w-px self-stretch my-10 bg-gradient-to-b
+          from-transparent via-white/10 to-transparent"
+      />
+
+      {/* ── Right form panel ───────────────────────────────── */}
+      <div className="relative z-[1] flex items-center justify-center
+        w-full lg:w-[480px] px-6 py-16 lg:py-8">
+
+        <div className="w-full max-w-md animate-scale-in" style={{ animationDelay: '80ms' }}>
+
+          {/* Card */}
+          <div className="bg-white rounded-3xl shadow-[0_32px_96px_rgba(0,0,0,.35)] overflow-hidden">
+
+            {/* Gold top strip */}
+            <div className="h-1 bg-gold-gradient" aria-hidden="true" />
+
+            <div className="px-8 py-8 sm:px-10 sm:py-10">
+
+              {/* Card header */}
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl
+                  bg-navy-gradient shadow-navy-md mb-4">
+                  <PKFLogo size={32} />
+                </div>
+                <h2 className="text-2xl font-black text-navy-900 leading-tight">
+                  Welcome back
+                </h2>
+                <p className="text-sm text-navy-600/70 mt-1">
+                  Sign in to your PKFConnect account
+                </p>
               </div>
 
-              {/* Password */}
-              <label style={S.fieldLabel} htmlFor="login-password">
-                Password
-              </label>
-              <div style={S.fieldWrap}>
-                <FiLock style={S.fieldIcon} aria-hidden="true" />
-                <input
-                  id="login-password"
-                  type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                  style={{ ...inputStyle('password'), paddingRight: '2.8rem' }}
-                  placeholder="Enter your password"
-                  required
-                  disabled={loading}
-                  aria-required="true"
-                />
-                <button
-                  type="button"
-                  style={S.eyeBtn}
-                  onClick={() => setShowPw(v => !v)}
-                  aria-label={showPw ? 'Hide password' : 'Show password'}
-                  disabled={loading}
+              {/* Error alert */}
+              {error && (
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="flex items-start gap-3 mb-6 px-4 py-3 rounded-2xl
+                    bg-red-50 border border-red-200 text-red-700 text-sm font-semibold
+                    animate-fade-up"
                 >
-                  {showPw ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                  <FiAlertCircle size={17} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-5">
+
+                {/* Email field */}
+                <div>
+                  <label htmlFor="login-email" className="block text-xs font-bold text-navy-800 mb-1.5 tracking-wide">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <FiMail
+                      size={15}
+                      aria-hidden="true"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-navy-400 pointer-events-none"
+                    />
+                    <input
+                      id="login-email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@pkfokam.edu"
+                      required
+                      disabled={loading}
+                      aria-required="true"
+                      className="w-full h-12 pl-10 pr-4 rounded-xl text-sm font-medium
+                        bg-navy-50/50 border border-navy-200 text-navy-900
+                        placeholder-navy-400/60
+                        focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                        transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                {/* Password field */}
+                <div>
+                  <label htmlFor="login-password" className="block text-xs font-bold text-navy-800 mb-1.5 tracking-wide">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <FiLock
+                      size={15}
+                      aria-hidden="true"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-navy-400 pointer-events-none"
+                    />
+                    <input
+                      id="login-password"
+                      type={showPw ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                      disabled={loading}
+                      aria-required="true"
+                      className="w-full h-12 pl-10 pr-12 rounded-xl text-sm font-medium
+                        bg-navy-50/50 border border-navy-200 text-navy-900
+                        placeholder-navy-400/60
+                        focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                        transition-all duration-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(v => !v)}
+                      disabled={loading}
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg
+                        text-navy-400 hover:text-navy-700 hover:bg-navy-100
+                        transition-colors disabled:opacity-50"
+                    >
+                      {showPw
+                        ? <FiEyeOff size={16} aria-hidden="true" />
+                        : <FiEye    size={16} aria-hidden="true" />
+                      }
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remember + forgot */}
+                <div className="flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 text-navy-600 font-semibold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      disabled={loading}
+                      className="w-4 h-4 rounded accent-gold cursor-pointer"
+                    />
+                    Remember me
+                  </label>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    className="font-bold text-gold hover:text-gold-600 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full h-12 rounded-xl font-black text-sm
+                    bg-navy-gradient text-white shadow-navy-md
+                    hover:shadow-navy-lg hover:-translate-y-0.5
+                    active:translate-y-0 active:shadow-navy-md
+                    disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0
+                    transition-all duration-200 overflow-hidden
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                >
+                  {/* Shimmer on hover */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent
+                      -translate-x-full group-hover:translate-x-full transition-transform duration-700"
+                  />
+                  <span className="relative flex items-center justify-center gap-2">
+                    {loading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                        Signing in…
+                      </>
+                    ) : (
+                      <>
+                        Sign In
+                        <FiArrowRight size={16} aria-hidden="true"
+                          className="transition-transform duration-200 group-hover:translate-x-1" />
+                      </>
+                    )}
+                  </span>
                 </button>
+              </form>
+
+              {/* Footer */}
+              <div className="mt-8 space-y-3 text-center">
+                <p className="text-xs text-navy-500">
+                  No account?{' '}
+                  <button type="button" className="font-bold text-gold hover:text-gold-600 transition-colors">
+                    Contact Admissions
+                  </button>
+                </p>
+
+                {/* Trust signals */}
+                <div className="flex items-center justify-center gap-4 pt-2">
+                  {[
+                    { icon: FiShield, label: 'Secure login' },
+                    { icon: FiClock,  label: 'Session protected' },
+                  ].map(({ icon: Icon, label }) => (
+                    <div key={label} className="flex items-center gap-1.5 text-[10px] text-navy-400 font-semibold">
+                      <Icon size={11} aria-hidden="true" />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-navy-400/60">
+                  &copy; {new Date().getFullYear()} PKFe-Hub &middot; PKFokam Institute of Excellence
+                </p>
               </div>
+            </div>
+          </div>
 
-              {/* Remember + forgot */}
-              <div style={S.metaRow}>
-                <label style={S.rememberLabel}>
-                  <input type="checkbox" disabled={loading} style={{ accentColor: '#C8902A' }} />
-                  Remember me
-                </label>
-                <button type="button" style={S.forgotBtn} disabled={loading}>
-                  Forgot password?
-                </button>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  ...S.submitBtn,
-                  ...(btnHover && !loading ? S.submitBtnHover : {}),
-                  ...(loading ? S.submitBtnDisabled : {}),
-                }}
-                onMouseEnter={() => setBtnHover(true)}
-                onMouseLeave={() => setBtnHover(false)}
-              >
-                {loading ? (
-                  <>
-                    <div style={S.spinner} aria-hidden="true" />
-                    Signing in…
-                  </>
-                ) : (
-                  <>
-                    Sign In
-                    <FiArrowRight size={18} aria-hidden="true" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div style={S.cardFooter}>
-              <p>
-                No account?{' '}
-                <button style={S.footerLink} type="button">Contact Admissions</button>
-              </p>
-              <p style={{ marginTop: '0.9rem', fontSize: '0.72rem', color: '#8A96A3' }}>
-                © {new Date().getFullYear()} PKFe-Hub · PKFokam Institute of Excellence
+          {/* Mobile brand below card */}
+          <div className="lg:hidden mt-8 text-center animate-fade-up" style={{ animationDelay: '200ms' }}>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <PKFLogo size={28} />
+              <p className="text-lg font-black text-white">
+                PKF<span className="text-gold">Connect</span>
               </p>
             </div>
+            <p className="text-xs text-white/40 tracking-widest uppercase">
+              PKFokam Institute of Excellence
+            </p>
           </div>
         </div>
       </div>

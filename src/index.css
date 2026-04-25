@@ -1,16 +1,66 @@
+/* Tailwind base — processed by PostCSS / CRA pipeline */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens & global resets */
 @import './styles/variables.css';
 
-::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--pkfe-border); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: var(--pkfe-gold); }
-
-::selection { background: var(--pkfe-gold); color: var(--pkfe-navy); }
-
-code {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-  font-size: 0.9em;
-  background: var(--pkfe-surface-2);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
+/* ── Scrollbar ─────────────────────────────────────────────── */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar          { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track    { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb    { background: rgba(255,215,0,.25); border-radius: 99px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,215,0,.55); }
 }
+
+/* ── Kente animated stripe (can't be expressed in Tailwind) ─── */
+.kente-stripe {
+  height: 6px;
+  flex-shrink: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #FFD700  0,  #FFD700 18px,
+    #001F5B 18px, #001F5B 34px,
+    #1A6B3A 34px, #1A6B3A 50px,
+    #FFFFFF 50px, #FFFFFF 58px,
+    #8B0000 58px, #8B0000 68px,
+    #FFFFFF 68px, #FFFFFF 76px,
+    #1A6B3A 76px, #1A6B3A 92px,
+    #001F5B 92px, #001F5B 108px,
+    #FFD700108px, #FFD700126px
+  );
+  background-size: 126px 6px;
+  animation: kente-slide 4s linear infinite;
+}
+
+@keyframes kente-slide {
+  from { background-position: 0 0; }
+  to   { background-position: 126px 0; }
+}
+
+/* ── Gold shimmer for active nav item ──────────────────────── */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255,255,255,.25) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-pass 2.4s ease-in-out infinite;
+}
+@keyframes shimmer-pass {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* ── Selection colour ──────────────────────────────────────── */
+::selection { background: #FFD700; color: #001F5B; }

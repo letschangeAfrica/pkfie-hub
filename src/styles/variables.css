@@ -8,12 +8,12 @@
 
 :root {
   /* ── Brand palette ────────────────────────────────────── */
-  --pkfe-navy:        #0B2559;   /* PKFokam Deep Navy   */
-  --pkfe-navy-90:     #0d2b65;
-  --pkfe-navy-lt:     #1A4080;   /* Hover / lighter navy */
-  --pkfe-gold:        #C8902A;   /* Warm African Gold   */
-  --pkfe-gold-lt:     #F0B429;   /* Light Gold          */
-  --pkfe-gold-pale:   #FEF3C7;   /* Gold tint surface   */
+  --pkfe-navy:        #001F5B;   /* PKFokam Deep Navy   */
+  --pkfe-navy-90:     #002B80;
+  --pkfe-navy-lt:     #0040C7;   /* Hover / lighter navy */
+  --pkfe-gold:        #FFD700;   /* PKFokam Pure Gold   */
+  --pkfe-gold-lt:     #FFEE66;   /* Light Gold          */
+  --pkfe-gold-pale:   #FFFDE0;   /* Gold tint surface   */
   --pkfe-green:       #1A6B3A;   /* African Forest Green accent */
   --pkfe-red-kente:   #8B1A1A;   /* Kente Red accent    */
 
@@ -62,7 +62,7 @@
   --sidebar-text:  rgba(255,255,255,0.88);
   --sidebar-active-bg: var(--pkfe-gold);
   --sidebar-active-text: var(--pkfe-navy);
-  --sidebar-hover-bg: rgba(200,144,42,.18);
+  --sidebar-hover-bg: rgba(255,215,0,.18);
 
   /* Backwards-compat aliases (old CSS still uses these) */
   --color-blue:        var(--pkfe-navy);
@@ -90,7 +90,7 @@
   --pkfe-text:        #E8EEF6;
   --pkfe-text-muted:  #8FA8C4;
   --pkfe-text-light:  #6B8BAD;
-  --pkfe-gold:        #F0B429;
+  --pkfe-gold:        #FFD700;
   --pkfe-gold-pale:   #1C1A09;
   --shadow-md:        0 4px 20px rgba(0,0,0,.32);
 
@@ -157,36 +157,19 @@ body {
   border-radius: 4px;
 }
 
-/* ── Kente stripe utility ─────────────────────────────────── */
-.kente-stripe {
-  height: 6px;
-  width: 100%;
-  flex-shrink: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    #C8902A  0px, #C8902A  18px,
-    #0B2559 18px, #0B2559  34px,
-    #1A6B3A 34px, #1A6B3A  50px,
-    #FFD700 50px, #FFD700  60px,
-    #8B1A1A 60px, #8B1A1A  70px,
-    #FFD700 70px, #FFD700  80px,
-    #1A6B3A 80px, #1A6B3A  96px,
-    #0B2559 96px, #0B2559 112px,
-    #C8902A112px, #C8902A 130px
-  );
-}
+/* .kente-stripe defined in index.css with animation */
 
 /* ── Adinkra diamond motif (decorative) ──────────────────── */
 .adinkra-bg {
   background-image:
     repeating-linear-gradient(
       45deg,
-      rgba(200,144,42,.06) 0, rgba(200,144,42,.06) 1px,
+      rgba(255,215,0,.06) 0, rgba(255,215,0,.06) 1px,
       transparent 0, transparent 50%
     ),
     repeating-linear-gradient(
       -45deg,
-      rgba(200,144,42,.06) 0, rgba(200,144,42,.06) 1px,
+      rgba(255,215,0,.06) 0, rgba(255,215,0,.06) 1px,
       transparent 0, transparent 50%
     );
   background-size: 24px 24px;
