@@ -203,7 +203,7 @@ export default function Login() {
                   Welcome back
                 </h2>
                 <p className="text-sm text-navy-600/70 mt-1">
-                  Sign in to your PKFConnect account
+                  Sign in to your PKFIE-Hub account
                 </p>
               </div>
 

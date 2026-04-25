@@ -15,11 +15,11 @@ const pageMeta = {
   '/assistant':  { title: 'AI Assistant',       desc: 'Instant answers about PKFokam — powered by AI' },
   '/pathfinder': { title: 'Program Pathfinder', desc: 'Discover the academic path that matches your strengths' },
   '/innovation': { title: 'Innovation Hub',     desc: 'Where ideas take flight and creativity meets technology' },
-  '/feedback':   { title: 'Feedback',           desc: 'Your voice matters — help us improve PKFConnect' },
+  '/feedback':   { title: 'Feedback',           desc: 'Your voice matters — help us improve PKFIE-Hub' },
   '/showcase':   { title: 'Campus Showcase',    desc: 'Relive vibrant PKFokam moments' },
   '/calendar':   { title: 'Calendar',           desc: 'Events, deadlines and academic schedule' },
   '/profile':    { title: 'Profile',            desc: 'Manage your account and preferences' },
-  '/search':     { title: 'Search',             desc: 'Find anything across PKFConnect' },
+  '/search':     { title: 'Search',             desc: 'Find anything across PKFIE-Hub' },
 };
 
 const Header = ({ theme, setTheme, onMenuToggle, sidebarOpen }) => {
@@ -167,7 +167,7 @@ const Header = ({ theme, setTheme, onMenuToggle, sidebarOpen }) => {
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             placeholder="Search… /"
-            aria-label="Search PKFConnect"
+            aria-label="Search PKFIE-Hub"
             className="w-full pl-8 pr-3 py-2 rounded-xl text-xs
               bg-navy-800 border border-navy-600/50 text-white placeholder-navy-400
               focus:border-gold/60 focus:ring-1 focus:ring-gold/40 focus:outline-none

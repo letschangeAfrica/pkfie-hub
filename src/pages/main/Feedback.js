@@ -161,7 +161,7 @@ const Feedback = () => {
       <div className="feedback-intro">
         <h3>Share Your Experience</h3>
         <p>
-          We're constantly working to improve PKFConnect, and your feedback is essential to this process.
+          We're constantly working to improve PKFIE-Hub, and your feedback is essential to this process.
           Whether you have a suggestion, encountered an issue, or want to share what you love about the platform, we want to hear from you.
         </p>
         <button className="feedback-shortcut-btn" onClick={handleGoToDashboard}>

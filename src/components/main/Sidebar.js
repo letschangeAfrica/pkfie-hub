@@ -66,7 +66,7 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick }) => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-gold leading-tight text-base truncate">
-              PKF<span className="text-white">Connect</span>
+              PKFIE<span className="text-white">-Hub</span>
             </p>
             <p className="text-[10px] text-navy-300 font-medium tracking-widest uppercase truncate">
               PKFokam Institute

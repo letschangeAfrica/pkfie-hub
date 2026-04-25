@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './AdminSidebar.css';
@@ -26,7 +25,7 @@ const AdminSidebar = ({ collapsed }) => {
   return (
     <div className={`adm-sb ${collapsed ? 'adm-sb-collapsed' : ''}`}>
       <div className="adm-sb-header">
-        {!collapsed ? <h2>PKFConnect Admin</h2> : <div className="adm-sb-logo-mini">PKF</div>}
+        {!collapsed ? <h2>PKFIE-Hub Admin</h2> : <div className="adm-sb-logo-mini">PKF</div>}
       </div>
 
       <nav className="adm-sb-nav">

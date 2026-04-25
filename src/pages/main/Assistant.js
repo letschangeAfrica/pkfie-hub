@@ -9,7 +9,7 @@ const Assistant = () => {
     {
       id: 1,
       type: 'ai',
-      content: "Hello! I'm the PKFConnect Assistant. How can I help you today?",
+      content: "Hello! I'm the PKFIE-Hub Assistant. How can I help you today?",
       time: getCurrentTime()
     }
   ]);

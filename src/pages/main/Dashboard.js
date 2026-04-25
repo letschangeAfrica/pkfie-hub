@@ -1,62 +1,111 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import pkfievideo from '../../images/pkfievideo.mp4';
-import './Dashboard.css';
+import PKFLogo from '../../components/PKFLogo';
+import {
+  FiBook, FiCpu, FiCompass, FiZap, FiBell,
+  FiCalendar, FiArrowRight, FiMapPin, FiClock,
+  FiX, FiUsers, FiAlertTriangle, FiInfo,
+} from 'react-icons/fi';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
+/* ── Priority badge ─────────────────────────────────────────── */
+const PriorityBadge = ({ priority }) => {
+  const map = {
+    urgent: 'bg-red-100 text-red-700 border border-red-200',
+    high:   'bg-amber-100 text-amber-700 border border-amber-200',
+    normal: 'bg-sky-100 text-sky-700 border border-sky-200',
+  };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase ${map[priority] || map.normal}`}>
+      {priority === 'urgent' && <FiAlertTriangle size={9} className="mr-1" aria-hidden="true" />}
+      {priority}
+    </span>
+  );
+};
+
+/* ── Quick-action card ──────────────────────────────────────── */
+const ActionCard = ({ icon: Icon, label, desc, accent, onClick, featured }) => (
+  <button
+    onClick={onClick}
+    className={[
+      'group relative text-left w-full rounded-2xl bg-white p-5 shadow-sm',
+      'border transition-all duration-200 hover:-translate-y-1 hover:shadow-md',
+      featured
+        ? 'border-gold/40 ring-2 ring-gold/20'
+        : 'border-slate-100 hover:border-slate-200',
+    ].join(' ')}
+  >
+    {featured && (
+      <span className="absolute top-3 right-3 text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded-full bg-gold/10 text-gold-600 border border-gold/30">
+        Popular
+      </span>
+    )}
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${accent}`}>
+      <Icon size={20} className="text-white" aria-hidden="true" />
+    </div>
+    <p className="font-bold text-slate-800 text-sm leading-tight mb-1">{label}</p>
+    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+    <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
+      Open <FiArrowRight size={12} className="group-hover:translate-x-1 transition-transform" aria-hidden="true" />
+    </div>
+  </button>
+);
+
+/* ── Stat pill (hero) ───────────────────────────────────────── */
+const StatPill = ({ icon: Icon, value, label, sub }) => (
+  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15">
+    <div className="w-9 h-9 rounded-lg bg-gold/20 flex items-center justify-center flex-shrink-0">
+      <Icon size={16} className="text-gold" aria-hidden="true" />
+    </div>
+    <div>
+      <p className="text-base font-black text-white leading-none">{value}</p>
+      <p className="text-[10px] text-white/60 mt-0.5 leading-tight">{label}<br/><span className="text-white/40">{sub}</span></p>
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
-  // Announcements state
-  const [announcements, setAnnouncements] = useState([]);
+  const [announcements,        setAnnouncements]        = useState([]);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
-  // Events state
-  const [events, setEvents] = useState([]);
+  const [events,               setEvents]               = useState([]);
+  const [loadingAnn,           setLoadingAnn]           = useState(true);
+  const [loadingEvt,           setLoadingEvt]           = useState(true);
 
-  // Fetch 3 most urgent or soonest (closest end_date or high priority) announcements
+  const firstName = currentUser?.first_name || currentUser?.username || 'there';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     axios.get(
       `${BASE_URL}/api/announcements/?status=active&ordering=-priority,end_date,-created_at&page=1&page_size=3`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
-    .then((res) =>
-      setAnnouncements(
-        Array.isArray(res.data.results)
-          ? res.data.results
-          : Array.isArray(res.data)
-          ? res.data
-          : []
-      )
-    )
-    .catch(() => setAnnouncements([]));
+    .then(res => setAnnouncements(Array.isArray(res.data.results) ? res.data.results : Array.isArray(res.data) ? res.data : []))
+    .catch(() => setAnnouncements([]))
+    .finally(() => setLoadingAnn(false));
   }, []);
 
-  // Fetch 3 upcoming events ordered by soonest
   useEffect(() => {
     const token = localStorage.getItem('token');
     axios.get(
       `${BASE_URL}/api/events/?upcoming=true&page=1&page_size=3`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
-    .then((res) =>
-      setEvents(
-        Array.isArray(res.data.results)
-          ? res.data.results
-          : Array.isArray(res.data)
-          ? res.data
-          : []
-      )
-    )
-    .catch(() => setEvents([]));
+    .then(res => setEvents(Array.isArray(res.data.results) ? res.data.results : Array.isArray(res.data) ? res.data : []))
+    .catch(() => setEvents([]))
+    .finally(() => setLoadingEvt(false));
   }, []);
 
-  // When a user clicks an announcement
   const handleAnnouncementClick = async (announcement) => {
     setSelectedAnnouncement(announcement);
-    // Record the view (if logged in)
     const token = localStorage.getItem('token');
     if (token) {
       try {
@@ -65,231 +114,365 @@ const Dashboard = () => {
           { announcement: announcement.id },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-      } catch (err) {
-        // Ignore duplicate entry errors
-      }
+      } catch { /* duplicate view — ignore */ }
     }
   };
 
-  // Close modal
-  const closeAnnouncementModal = () => setSelectedAnnouncement(null);
+  const formatDate  = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  const getMonth    = (d) => d ? new Date(d).toLocaleString('default', { month: 'short' }).toUpperCase() : '';
+  const getDay      = (d) => d ? new Date(d).getDate() : '';
+  const getTime     = (d) => d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const getRelDate  = (d) => {
+    if (!d) return '';
+    const diff = Math.floor((Date.now() - new Date(d)) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return formatDate(d);
+  };
 
-  // Navigation handlers (unchanged)
-  const handleExploreResources = () => navigate('/handbook');
-  const handleHandbookResources = () => navigate('/handbook');
-  const handleAIAssistant = () => navigate('/assistant');
-  const handleProgramPathfinder = () => navigate('/pathfinder');
-  const handleFeedback = () => navigate('/feedback');
-  const handleAskQuestion = () => navigate('/assistant');
-  const handleDownloadHandbook = () => window.open('/downloads/PKFokam_Handbook.pdf', '_blank');
-  const handleFindPath = () => navigate('/pathfinder');
-  const handleGiveFeedback = () => navigate('/feedback');
-
-  // Date helpers
-  const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString() : '');
-  const getMonth = (dateStr) => (dateStr ? new Date(dateStr).toLocaleString('default', { month: 'short' }).toUpperCase() : '');
-  const getDay = (dateStr) => (dateStr ? new Date(dateStr).getDate() : '');
-  const getTime = (dateStr) => (dateStr ? new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
-
-  // Render announcements
-  const renderAnnouncementList = (list) => (
-    <div className="announcements">
-      {list.length === 0 && (
-        <div className="announcement-item">
-          <div className="announcement-title">
-            <i className="fas fa-bullhorn"></i> No announcements yet.
-          </div>
-        </div>
-      )}
-      {list.map((a) => (
-        <div
-          className="announcement-item announcement-clickable"
-          key={a.id}
-          style={{ cursor: 'pointer' }}
-          onClick={() => handleAnnouncementClick(a)}
-        >
-          <div className="announcement-title">
-            <i className="fas fa-bullhorn"></i> {a.title}
-            {a.priority && a.priority !== 'normal' && (
-              <span className={`announcement-priority priority-${a.priority}`}>{a.priority}</span>
-            )}
-          </div>
-          <p>{a.content.length > 120 ? a.content.slice(0, 120) + "..." : a.content}</p>
-          <div className="announcement-date">
-            {a.start_date ? `From: ${formatDate(a.start_date)} ` : ''}
-            {a.end_date ? `To: ${formatDate(a.end_date)}` : ''}
-            {(!a.start_date && !a.end_date) && `Posted: ${formatDate(a.created_at)}`}
-          </div>
-        </div>
-      ))}
-      {/* Modal for announcement details */}
-      {selectedAnnouncement && (
-        <div className="am-modal-overlay" onClick={closeAnnouncementModal}>
-          <div className="am-modal" onClick={e => e.stopPropagation()}>
-            <div className="am-modal-header">
-              <h3>{selectedAnnouncement.title}</h3>
-              <button className="am-modal-close" onClick={closeAnnouncementModal}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="am-modal-body">
-              <p>{selectedAnnouncement.content}</p>
-              <div className="am-modal-meta">
-                Priority: <strong>{selectedAnnouncement.priority}</strong> <br/>
-                Period: {formatDate(selectedAnnouncement.start_date)} - {formatDate(selectedAnnouncement.end_date)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // Render events (unchanged)
-  const renderEventsList = (list) => (
-    <div className="events-grid">
-      {list.length === 0 && (
-        <div className="event-card">
-          <div className="event-details">
-            <h4>No upcoming events</h4>
-          </div>
-        </div>
-      )}
-      {list.map((event) => (
-        <div className="event-card" key={event.id}>
-          <div className="event-date">
-            <span className="event-day">{getDay(event.start_time)}</span>
-            <span className="event-month">{getMonth(event.start_time)}</span>
-          </div>
-          <div className="event-details">
-            <h4>{event.title}</h4>
-            <p>{event.description}</p>
-            <span className="event-time">
-              {getTime(event.start_time)}
-              {event.end_time ? ` - ${getTime(event.end_time)}` : ''}
-            </span>
-            {event.location && (
-              <div className="event-location"><i className="fas fa-map-marker-alt"></i> {event.location}</div>
-            )}
-            {event.registration_link && (
-              <div>
-                <a href={event.registration_link} target="_blank" rel="noopener noreferrer">
-                  Register
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const skeletonRows = [1, 2, 3];
 
   return (
-    <section id="dashboard" className="page-section active">
-      {/* Hero Section with ONLY Video */}
-      <div className="dashboard-hero video-only">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="dashboard-hero-video"
+    <div className="space-y-6 animate-fade-in">
+
+      {/* ── Hero banner ─────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-navy-gradient shadow-navy-lg min-h-[200px]">
+        {/* Adinkra texture */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `repeating-linear-gradient(45deg,rgba(255,215,0,.04) 0,rgba(255,215,0,.04) 1px,transparent 0,transparent 50%),repeating-linear-gradient(-45deg,rgba(255,215,0,.04) 0,rgba(255,215,0,.04) 1px,transparent 0,transparent 50%)`,
+            backgroundSize: '28px 28px',
+          }}
+        />
+        {/* Glow orbs */}
+        <div aria-hidden="true" className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-gold/8 blur-[80px]" />
+        <div aria-hidden="true" className="absolute bottom-0 left-1/3 w-40 h-40 rounded-full bg-navy-500/30 blur-[60px]" />
+
+        <div className="relative flex flex-col lg:flex-row lg:items-center gap-6 p-6 lg:p-8">
+          {/* Left */}
+          <div className="flex-1">
+            <p className="text-gold text-xs font-bold tracking-widest uppercase mb-2 opacity-80">
+              {greeting}
+            </p>
+            <h1 className="font-display font-bold text-white leading-tight mb-2"
+                style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)' }}>
+              Welcome back,{' '}
+              <span className="text-gold animate-glow-text">{firstName}</span>
+            </h1>
+            <p className="text-white/60 text-sm mb-6">
+              Here&rsquo;s what&rsquo;s happening at PKFokam today
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => navigate('/handbook')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl
+                  bg-gold text-navy-900 text-sm font-black shadow-gold-md
+                  hover:bg-gold-500 hover:-translate-y-0.5 hover:shadow-gold-lg
+                  transition-all duration-200 group"
+              >
+                Explore Resources
+                <FiArrowRight size={14} className="group-hover:translate-x-1 transition-transform" aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => navigate('/assistant')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl
+                  bg-white/10 border border-white/20 text-white text-sm font-semibold
+                  hover:bg-white/20 hover:border-white/30 hover:-translate-y-0.5
+                  transition-all duration-200 backdrop-blur-sm"
+              >
+                <FiCpu size={14} aria-hidden="true" />
+                Ask AI Assistant
+              </button>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="flex flex-row lg:flex-col gap-2.5 lg:min-w-[220px]">
+            <StatPill icon={FiUsers}    value="2 500+"  label="Students"  sub="Currently enrolled" />
+            <StatPill icon={FiBook}     value="128+"    label="Resources" sub="Handbook documents" />
+            <StatPill icon={FiClock}    value="24 / 7"  label="AI Support" sub="Always available" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quick actions ────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 mb-3">
+          Quick Access
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <ActionCard
+            icon={FiBook}
+            label="Digital Handbook"
+            desc="Browse university policies and resources"
+            accent="bg-blue-500"
+            onClick={() => navigate('/handbook')}
+          />
+          <ActionCard
+            icon={FiCpu}
+            label="AI Assistant"
+            desc="Ask anything about PKFokam"
+            accent="bg-violet-500"
+            onClick={() => navigate('/assistant')}
+            featured
+          />
+          <ActionCard
+            icon={FiCompass}
+            label="Program Pathfinder"
+            desc="Find your academic path"
+            accent="bg-emerald-500"
+            onClick={() => navigate('/pathfinder')}
+          />
+          <ActionCard
+            icon={FiZap}
+            label="Innovation Hub"
+            desc="Explore student projects"
+            accent="bg-amber-500"
+            onClick={() => navigate('/innovation')}
+          />
+        </div>
+      </div>
+
+      {/* ── Announcements + Events ───────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        {/* Announcements (wider) */}
+        <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center">
+                <FiBell size={14} className="text-gold" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-slate-800">Latest Announcements</h2>
+                <p className="text-[10px] text-slate-400">Most recent campus notices</p>
+              </div>
+            </div>
+            {announcements.length > 0 && (
+              <span className="flex items-center justify-center min-w-[22px] h-5.5 px-1.5 rounded-full
+                bg-gold text-navy-900 text-[10px] font-black">
+                {announcements.length}
+              </span>
+            )}
+          </div>
+
+          <div className="divide-y divide-slate-50">
+            {loadingAnn
+              ? skeletonRows.map(i => (
+                  <div key={i} className="px-5 py-4 space-y-2.5 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-16 rounded-full bg-slate-100" />
+                      <div className="h-3 w-24 rounded bg-slate-100 ml-auto" />
+                    </div>
+                    <div className="h-4 w-3/4 rounded bg-slate-100" />
+                    <div className="h-3 w-full rounded bg-slate-100" />
+                    <div className="h-3 w-5/6 rounded bg-slate-100" />
+                  </div>
+                ))
+              : announcements.length === 0
+              ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <FiInfo size={28} className="mb-2 opacity-40" aria-hidden="true" />
+                  <p className="text-sm font-medium">No announcements yet</p>
+                </div>
+              )
+              : announcements.map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => handleAnnouncementClick(a)}
+                  className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <PriorityBadge priority={a.priority || 'normal'} />
+                    </div>
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0 mt-0.5">
+                      {getRelDate(a.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-800 mb-1.5 group-hover:text-navy-800 transition-colors">
+                    {a.title}
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                    {a.content}
+                  </p>
+                </button>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Events (narrower) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <FiCalendar size={14} className="text-white" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-slate-800">Events</h2>
+              <p className="text-[10px] text-slate-400">Upcoming campus events</p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-50">
+            {loadingEvt
+              ? skeletonRows.map(i => (
+                  <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
+                    <div className="w-11 h-12 rounded-xl bg-slate-100 flex-shrink-0" />
+                    <div className="flex-1 space-y-2 pt-1">
+                      <div className="h-3.5 w-3/4 rounded bg-slate-100" />
+                      <div className="h-3 w-1/2 rounded bg-slate-100" />
+                    </div>
+                  </div>
+                ))
+              : events.length === 0
+              ? (
+                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                  <FiCalendar size={24} className="mb-2 opacity-40" aria-hidden="true" />
+                  <p className="text-sm font-medium">No upcoming events</p>
+                </div>
+              )
+              : events.map(ev => (
+                <div key={ev.id} className="flex items-start gap-3.5 px-5 py-4 hover:bg-slate-50 transition-colors">
+                  {/* Date block */}
+                  <div className="flex-shrink-0 w-11 rounded-xl bg-navy-800 text-center py-1.5 shadow-navy-md">
+                    <p className="text-gold text-xs font-black leading-none">{getMonth(ev.start_time)}</p>
+                    <p className="text-white text-lg font-black leading-tight">{getDay(ev.start_time)}</p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 leading-snug truncate">{ev.title}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                      {ev.start_time && (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                          <FiClock size={10} aria-hidden="true" />
+                          {getTime(ev.start_time)}{ev.end_time ? ` – ${getTime(ev.end_time)}` : ''}
+                        </span>
+                      )}
+                      {ev.location && (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                          <FiMapPin size={10} aria-hidden="true" />
+                          {ev.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+
+          <div className="px-5 py-3 border-t border-slate-100">
+            <button
+              onClick={() => navigate('/calendar')}
+              className="flex items-center gap-1.5 text-xs font-bold text-gold hover:text-gold-600 transition-colors group"
+            >
+              View all events
+              <FiArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Campus Life ──────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 mb-3">
+          Campus Life
+        </h2>
+        <div className="relative overflow-hidden rounded-2xl bg-navy-900 shadow-navy-md" style={{ aspectRatio: '16/6' }}>
+          <video
+            autoPlay loop muted playsInline
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+            aria-hidden="true"
+          >
+            <source src={pkfievideo} type="video/mp4" />
+          </video>
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-navy-950/90 via-navy-900/20 to-transparent" />
+          {/* Caption */}
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[10px] font-bold tracking-widest uppercase text-gold mb-1">Featured</p>
+                <h3 className="font-display text-white font-bold text-lg leading-tight">
+                  Innovation at PKFokam: Student Showcase 2024
+                </h3>
+                <p className="text-white/60 text-xs mt-1">
+                  Watch highlights from our annual engineering and computer science exhibition.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/showcase')}
+                className="flex-shrink-0 ml-4 flex items-center gap-2 px-4 py-2 rounded-xl
+                  bg-gold text-navy-900 text-xs font-black shadow-gold-md
+                  hover:bg-gold-500 hover:-translate-y-0.5 transition-all duration-200"
+              >
+                View Showcase
+                <FiArrowRight size={12} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Announcement detail modal ────────────────────────── */}
+      {selectedAnnouncement && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Announcement details"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedAnnouncement(null)}
         >
-          <source src={pkfievideo} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
-        <div className="dashboard-hero-overlay" />
-        <div className="hero-content">
-          <h1>Welcome to PKFConnect</h1>
-          <p>Your gateway to PKFokam Institute of Excellence</p>
-          <button className="cta-button" onClick={handleExploreResources}>
-            Explore Resources <i className="fas fa-arrow-right"></i>
-          </button>
-        </div>
-      </div>
+          <div className="absolute inset-0 bg-navy-950/70 backdrop-blur-sm animate-fade-in" />
+          <div
+            className="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,.25)] animate-scale-in overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Gold top strip */}
+            <div className="h-1 bg-gold-gradient" aria-hidden="true" />
 
-      {/* Dashboard Stats */}
-      <div className="dashboard-section">
-        <h3 className="section-title">Dashboard Overview</h3>
-        <div className="dashboard-grid">
-          <div className="card" onClick={handleHandbookResources} style={{ cursor: 'pointer' }}>
-            <div className="card-header">
-              <h3 className="card-title">Handbook Resources</h3>
-              <div className="card-icon">
-                <i className="fas fa-book"></i>
+            <div className="px-6 py-5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <PriorityBadge priority={selectedAnnouncement.priority || 'normal'} />
+                  <span className="text-[10px] text-slate-400">
+                    {formatDate(selectedAnnouncement.created_at)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedAnnouncement(null)}
+                  aria-label="Close announcement"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+                >
+                  <FiX size={16} aria-hidden="true" />
+                </button>
               </div>
+
+              <h3 className="font-bold text-slate-900 text-lg leading-snug mb-3">
+                {selectedAnnouncement.title}
+              </h3>
+
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {selectedAnnouncement.content}
+              </p>
+
+              {(selectedAnnouncement.start_date || selectedAnnouncement.end_date) && (
+                <div className="mt-4 flex items-center gap-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                  {selectedAnnouncement.start_date && (
+                    <span>From: <strong className="text-slate-700">{formatDate(selectedAnnouncement.start_date)}</strong></span>
+                  )}
+                  {selectedAnnouncement.end_date && (
+                    <span>Until: <strong className="text-slate-700">{formatDate(selectedAnnouncement.end_date)}</strong></span>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="stat-value">128+</div>
-            <p className="stat-label">Policies and resources available</p>
-          </div>
-          <div className="card" onClick={handleAIAssistant} style={{ cursor: 'pointer' }}>
-            <div className="card-header">
-              <h3 className="card-title">AI Assistant</h3>
-              <div className="card-icon">
-                <i className="fas fa-robot"></i>
-              </div>
-            </div>
-            <div className="stat-value">24/7</div>
-            <p className="stat-label">Instant answers to your questions</p>
-          </div>
-          <div className="card" onClick={handleProgramPathfinder} style={{ cursor: 'pointer' }}>
-            <div className="card-header">
-              <h3 className="card-title">Program Pathfinder</h3>
-              <div className="card-icon">
-                <i className="fas fa-compass"></i>
-              </div>
-            </div>
-            <div className="stat-value">12</div>
-            <p className="stat-label">Fields of study to discover</p>
-          </div>
-          <div className="card" onClick={handleFeedback} style={{ cursor: 'pointer' }}>
-            <div className="card-header">
-              <h3 className="card-title">Feedback</h3>
-              <div className="card-icon">
-                <i className="fas fa-comment"></i>
-              </div>
-            </div>
-            <div className="stat-value">98%</div>
-            <p className="stat-label">Suggestions reviewed within 48h</p>
           </div>
         </div>
-      </div>
-
-      {/* Announcements Section */}
-      <div className="announcements-section">
-        <h3 className="section-title">Latest Announcements</h3>
-        {renderAnnouncementList(announcements)}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="actions-section">
-        <h3 className="section-title">Quick Actions</h3>
-        <div className="quick-actions">
-          <button className="action-btn" onClick={handleAskQuestion}>
-            <i className="fas fa-question-circle"></i>
-            <div className="action-label">Ask a Question</div>
-          </button>
-          <button className="action-btn" onClick={handleDownloadHandbook}>
-            <i className="fas fa-download"></i>
-            <div className="action-label">Download Handbook</div>
-          </button>
-          <button className="action-btn" onClick={handleFindPath}>
-            <i className="fas fa-road"></i>
-            <div className="action-label">Find Your Path</div>
-          </button>
-          <button className="action-btn" onClick={handleGiveFeedback}>
-            <i className="fas fa-comments"></i>
-            <div className="action-label">Give Feedback</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Upcoming Events */}
-      <div className="events-section">
-        <h3 className="section-title">Upcoming Events</h3>
-        {renderEventsList(events)}
-      </div>
-    </section>
+      )}
+    </div>
   );
 };
 
