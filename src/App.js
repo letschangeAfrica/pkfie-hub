@@ -71,7 +71,8 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || "light");
 
   useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.body.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 

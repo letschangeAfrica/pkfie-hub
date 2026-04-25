@@ -32,11 +32,11 @@ const ActionCard = ({ icon: Icon, label, desc, accent, onClick, featured }) => (
   <button
     onClick={onClick}
     className={[
-      'group relative text-left w-full rounded-2xl bg-white p-5 shadow-sm',
-      'border transition-all duration-200 hover:-translate-y-1 hover:shadow-md',
+      'group relative text-left w-full rounded-2xl bg-white dark:bg-navy-800 p-5 shadow-sm dark:shadow-none',
+      'border transition-all duration-200 hover:-translate-y-1 hover:shadow-md dark:hover:shadow-none',
       featured
         ? 'border-gold/40 ring-2 ring-gold/20'
-        : 'border-slate-100 hover:border-slate-200',
+        : 'border-slate-100 dark:border-navy-700/40 hover:border-slate-200 dark:hover:border-navy-600/60',
     ].join(' ')}
   >
     {featured && (
@@ -47,9 +47,9 @@ const ActionCard = ({ icon: Icon, label, desc, accent, onClick, featured }) => (
     <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${accent}`}>
       <Icon size={20} className="text-white" aria-hidden="true" />
     </div>
-    <p className="font-bold text-slate-800 text-sm leading-tight mb-1">{label}</p>
-    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
-    <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors">
+    <p className="font-bold text-slate-800 dark:text-white text-sm leading-tight mb-1">{label}</p>
+    <p className="text-xs text-slate-500 dark:text-navy-300 leading-relaxed">{desc}</p>
+    <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-slate-400 dark:text-navy-400 group-hover:text-slate-600 dark:group-hover:text-navy-200 transition-colors">
       Open <FiArrowRight size={12} className="group-hover:translate-x-1 transition-transform" aria-hidden="true" />
     </div>
   </button>
@@ -162,7 +162,7 @@ const Dashboard = () => {
               <span className="text-gold animate-glow-text">{firstName}</span>
             </h1>
             <p className="text-white/60 text-sm mb-6">
-              Here&rsquo;s what&rsquo;s happening at PKFokam today
+              Here's what's happening at PKFokam today
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -199,7 +199,7 @@ const Dashboard = () => {
 
       {/* ── Quick actions ────────────────────────────────────── */}
       <div>
-        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 mb-3">
+        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 dark:text-navy-400 mb-3">
           Quick Access
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -239,15 +239,15 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
         {/* Announcements (wider) */}
-        <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="lg:col-span-3 bg-white dark:bg-navy-800 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-navy-700/40 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-navy-700/40">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-navy-800 flex items-center justify-center">
                 <FiBell size={14} className="text-gold" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="text-sm font-black text-slate-800">Latest Announcements</h2>
-                <p className="text-[10px] text-slate-400">Most recent campus notices</p>
+                <h2 className="text-sm font-black text-slate-800 dark:text-white">Latest Announcements</h2>
+                <p className="text-[10px] text-slate-400 dark:text-navy-400">Most recent campus notices</p>
               </div>
             </div>
             {announcements.length > 0 && (
@@ -258,22 +258,22 @@ const Dashboard = () => {
             )}
           </div>
 
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-navy-700/30">
             {loadingAnn
               ? skeletonRows.map(i => (
                   <div key={i} className="px-5 py-4 space-y-2.5 animate-pulse">
                     <div className="flex items-center gap-2">
-                      <div className="h-4 w-16 rounded-full bg-slate-100" />
-                      <div className="h-3 w-24 rounded bg-slate-100 ml-auto" />
+                      <div className="h-4 w-16 rounded-full bg-slate-100 dark:bg-navy-700" />
+                      <div className="h-3 w-24 rounded bg-slate-100 dark:bg-navy-700 ml-auto" />
                     </div>
-                    <div className="h-4 w-3/4 rounded bg-slate-100" />
-                    <div className="h-3 w-full rounded bg-slate-100" />
-                    <div className="h-3 w-5/6 rounded bg-slate-100" />
+                    <div className="h-4 w-3/4 rounded bg-slate-100 dark:bg-navy-700" />
+                    <div className="h-3 w-full rounded bg-slate-100 dark:bg-navy-700" />
+                    <div className="h-3 w-5/6 rounded bg-slate-100 dark:bg-navy-700" />
                   </div>
                 ))
               : announcements.length === 0
               ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-navy-500">
                   <FiInfo size={28} className="mb-2 opacity-40" aria-hidden="true" />
                   <p className="text-sm font-medium">No announcements yet</p>
                 </div>
@@ -282,20 +282,20 @@ const Dashboard = () => {
                 <button
                   key={a.id}
                   onClick={() => handleAnnouncementClick(a)}
-                  className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors group"
+                  className="w-full text-left px-5 py-4 hover:bg-slate-50 dark:hover:bg-navy-700/40 transition-colors group"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <PriorityBadge priority={a.priority || 'normal'} />
                     </div>
-                    <span className="text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0 mt-0.5">
+                    <span className="text-[10px] text-slate-400 dark:text-navy-500 whitespace-nowrap flex-shrink-0 mt-0.5">
                       {getRelDate(a.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm font-bold text-slate-800 mb-1.5 group-hover:text-navy-800 transition-colors">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white mb-1.5 group-hover:text-navy-800 dark:group-hover:text-gold transition-colors">
                     {a.title}
                   </p>
-                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                  <p className="text-xs text-slate-500 dark:text-navy-300 leading-relaxed line-clamp-2">
                     {a.content}
                   </p>
                 </button>
@@ -305,53 +305,52 @@ const Dashboard = () => {
         </div>
 
         {/* Events (narrower) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="lg:col-span-2 bg-white dark:bg-navy-800 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-navy-700/40 overflow-hidden">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 dark:border-navy-700/40">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
               <FiCalendar size={14} className="text-white" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-slate-800">Events</h2>
-              <p className="text-[10px] text-slate-400">Upcoming campus events</p>
+              <h2 className="text-sm font-black text-slate-800 dark:text-white">Events</h2>
+              <p className="text-[10px] text-slate-400 dark:text-navy-400">Upcoming campus events</p>
             </div>
           </div>
 
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-navy-700/30">
             {loadingEvt
               ? skeletonRows.map(i => (
                   <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
-                    <div className="w-11 h-12 rounded-xl bg-slate-100 flex-shrink-0" />
+                    <div className="w-11 h-12 rounded-xl bg-slate-100 dark:bg-navy-700 flex-shrink-0" />
                     <div className="flex-1 space-y-2 pt-1">
-                      <div className="h-3.5 w-3/4 rounded bg-slate-100" />
-                      <div className="h-3 w-1/2 rounded bg-slate-100" />
+                      <div className="h-3.5 w-3/4 rounded bg-slate-100 dark:bg-navy-700" />
+                      <div className="h-3 w-1/2 rounded bg-slate-100 dark:bg-navy-700" />
                     </div>
                   </div>
                 ))
               : events.length === 0
               ? (
-                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-navy-500">
                   <FiCalendar size={24} className="mb-2 opacity-40" aria-hidden="true" />
                   <p className="text-sm font-medium">No upcoming events</p>
                 </div>
               )
               : events.map(ev => (
-                <div key={ev.id} className="flex items-start gap-3.5 px-5 py-4 hover:bg-slate-50 transition-colors">
-                  {/* Date block */}
-                  <div className="flex-shrink-0 w-11 rounded-xl bg-navy-800 text-center py-1.5 shadow-navy-md">
+                <div key={ev.id} className="flex items-start gap-3.5 px-5 py-4 hover:bg-slate-50 dark:hover:bg-navy-700/40 transition-colors">
+                  <div className="flex-shrink-0 w-11 rounded-xl bg-navy-800 dark:bg-navy-900 text-center py-1.5 shadow-navy-md">
                     <p className="text-gold text-xs font-black leading-none">{getMonth(ev.start_time)}</p>
                     <p className="text-white text-lg font-black leading-tight">{getDay(ev.start_time)}</p>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 leading-snug truncate">{ev.title}</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-white leading-snug truncate">{ev.title}</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                       {ev.start_time && (
-                        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-navy-300">
                           <FiClock size={10} aria-hidden="true" />
                           {getTime(ev.start_time)}{ev.end_time ? ` – ${getTime(ev.end_time)}` : ''}
                         </span>
                       )}
                       {ev.location && (
-                        <span className="flex items-center gap-1 text-[11px] text-slate-500 truncate">
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-navy-300 truncate">
                           <FiMapPin size={10} aria-hidden="true" />
                           {ev.location}
                         </span>
@@ -363,7 +362,7 @@ const Dashboard = () => {
             }
           </div>
 
-          <div className="px-5 py-3 border-t border-slate-100">
+          <div className="px-5 py-3 border-t border-slate-100 dark:border-navy-700/40">
             <button
               onClick={() => navigate('/calendar')}
               className="flex items-center gap-1.5 text-xs font-bold text-gold hover:text-gold-600 transition-colors group"
@@ -377,7 +376,7 @@ const Dashboard = () => {
 
       {/* ── Campus Life ──────────────────────────────────────── */}
       <div>
-        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 mb-3">
+        <h2 className="text-xs font-black tracking-widest uppercase text-slate-400 dark:text-navy-400 mb-3">
           Campus Life
         </h2>
         <div className="relative overflow-hidden rounded-2xl bg-navy-900 shadow-navy-md" style={{ aspectRatio: '16/6' }}>
@@ -427,7 +426,7 @@ const Dashboard = () => {
         >
           <div className="absolute inset-0 bg-navy-950/70 backdrop-blur-sm animate-fade-in" />
           <div
-            className="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,.25)] animate-scale-in overflow-hidden"
+            className="relative z-10 w-full max-w-lg bg-white dark:bg-navy-800 rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,.35)] animate-scale-in overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Gold top strip */}
@@ -444,27 +443,27 @@ const Dashboard = () => {
                 <button
                   onClick={() => setSelectedAnnouncement(null)}
                   aria-label="Close announcement"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+                  className="p-1.5 rounded-lg text-slate-400 dark:text-navy-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-navy-700 transition-colors flex-shrink-0"
                 >
                   <FiX size={16} aria-hidden="true" />
                 </button>
               </div>
 
-              <h3 className="font-bold text-slate-900 text-lg leading-snug mb-3">
+              <h3 className="font-bold text-slate-900 dark:text-white text-lg leading-snug mb-3">
                 {selectedAnnouncement.title}
               </h3>
 
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <p className="text-sm text-slate-600 dark:text-navy-300 leading-relaxed">
                 {selectedAnnouncement.content}
               </p>
 
               {(selectedAnnouncement.start_date || selectedAnnouncement.end_date) && (
-                <div className="mt-4 flex items-center gap-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                <div className="mt-4 flex items-center gap-4 pt-4 border-t border-slate-100 dark:border-navy-700/40 text-xs text-slate-500 dark:text-navy-400">
                   {selectedAnnouncement.start_date && (
-                    <span>From: <strong className="text-slate-700">{formatDate(selectedAnnouncement.start_date)}</strong></span>
+                    <span>From: <strong className="text-slate-700 dark:text-navy-200">{formatDate(selectedAnnouncement.start_date)}</strong></span>
                   )}
                   {selectedAnnouncement.end_date && (
-                    <span>Until: <strong className="text-slate-700">{formatDate(selectedAnnouncement.end_date)}</strong></span>
+                    <span>Until: <strong className="text-slate-700 dark:text-navy-200">{formatDate(selectedAnnouncement.end_date)}</strong></span>
                   )}
                 </div>
               )}

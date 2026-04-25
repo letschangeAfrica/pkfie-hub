@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
@@ -30,7 +30,7 @@ const Layout = ({ children, theme, setTheme }) => {
         Skip to main content
       </a>
 
-      <div className="flex min-h-screen bg-slate-50">
+      <div className="flex min-h-screen bg-slate-50 dark:bg-navy-950">
 
         <Sidebar
           sidebarOpen={sidebarOpen}

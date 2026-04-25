@@ -50,8 +50,7 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick }) => {
           'fixed top-0 left-0 z-30 h-full w-64 flex flex-col',
           'bg-navy-900 border-r border-navy-700/40',
           'transition-transform duration-300 ease-spring',
-          'lg:translate-x-0 lg:static lg:z-auto',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
         {/* Kente stripe */}
