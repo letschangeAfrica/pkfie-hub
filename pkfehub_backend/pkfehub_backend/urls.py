@@ -29,7 +29,7 @@ urlpatterns = [
     path("api/notifications/", include("notifications.urls")),
     path("api/gallery/", include("gallery.urls")),
     path("api/", include("system.urls")),
-    # ... any other urls ...
+    path("api/analytics/", include("analytics.urls")),
 ]
 
 # Serve media files in development and production if DEBUG is True
