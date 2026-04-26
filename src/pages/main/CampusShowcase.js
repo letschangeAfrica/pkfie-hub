@@ -1,211 +1,187 @@
-import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
-import "./CampusShowcase.css";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
+import {
+  FiHeart, FiX, FiChevronLeft, FiChevronRight,
+  FiCamera, FiTrendingUp, FiGrid, FiVideo,
+} from 'react-icons/fi';
 
-// Backend API base (adjust as needed)
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000/api/gallery/";
+const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000/api/gallery/';
 
-const OCCASION_COLORS = {
-  "Tech Week": "#4e90ff",
-  "Sports Gala": "#fca311",
-  "Arts & Culture": "#d72660",
-  "Annual Talent Show": "#8e54e9",
-  "Graduation": "#ffd700",
-  "Community Service": "#2ecc40",
-  "Guest Lecture": "#00b894",
-  "Innovation Challenge": "#ff7675",
-  All: "#1d2540"
-};
+const formatDate = (d) => d
+  ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  : '';
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return "";
-  const opts = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Date(dateStr).toLocaleDateString(undefined, opts);
-};
-
-function dynamicBg(occasion) {
-  switch (occasion) {
-    case "Tech Week": return "linear-gradient(120deg, #e9f5ff 80%, #4e90ff22 100%)";
-    case "Sports Gala": return "linear-gradient(120deg, #fff5e0 80%, #fca31122 100%)";
-    case "Arts & Culture": return "linear-gradient(120deg, #fce8f1 80%, #d7266022 100%)";
-    case "Annual Talent Show": return "linear-gradient(120deg, #f3ecff 80%, #8e54e922 100%)";
-    case "Graduation": return "linear-gradient(120deg, #fffbe8 80%, #ffd70022 100%)";
-    case "Community Service": return "linear-gradient(120deg, #e8fff3 80%, #2ecc4022 100%)";
-    case "Guest Lecture": return "linear-gradient(120deg, #e8fff6 80%, #00b89422 100%)";
-    case "Innovation Challenge": return "linear-gradient(120deg, #ffe8ec 80%, #ff767522 100%)";
-    default: return "linear-gradient(120deg, #f7fafc 70%, #e4efff 100%)";
-  }
-}
-
-function LikeBurst({ show }) {
-  if (!show) return null;
-  return (
-    <span className="cs-like-burst">
-      <span className="cs-like-heart" style={{ left: "8%", animationDelay: "0ms" }} />
-      <span className="cs-like-heart" style={{ left: "48%", animationDelay: "80ms" }} />
-      <span className="cs-like-heart" style={{ left: "78%", animationDelay: "150ms" }} />
-      <span className="cs-like-heart" style={{ left: "28%", animationDelay: "100ms" }} />
-      <span className="cs-like-heart" style={{ left: "68%", animationDelay: "180ms" }} />
-    </span>
-  );
-}
-
-const sortMedia = (arr, sortBy) => {
-  if (sortBy === "liked") return [...arr].sort((a, b) => b.likes - a.likes);
-  if (sortBy === "newest") return [...arr].sort((a, b) => new Date(b.date) - new Date(a.date));
-  if (sortBy === "oldest") return [...arr].sort((a, b) => new Date(a.date) - new Date(b.date));
+const sortMedia = (arr, by) => {
+  if (by === 'liked')  return [...arr].sort((a, b) => b.likes - a.likes);
+  if (by === 'newest') return [...arr].sort((a, b) => new Date(b.date) - new Date(a.date));
+  if (by === 'oldest') return [...arr].sort((a, b) => new Date(a.date) - new Date(b.date));
   return arr;
 };
 
-const trendingMedia = (arr) => sortMedia([...arr], "liked").slice(0, 3);
+/* ── Media thumb (shared) ── */
+const MediaThumb = ({ item, className = '' }) =>
+  item.type === 'video' ? (
+    <video
+      src={item.videoSrc}
+      poster={item.thumbnail}
+      className={`w-full h-full object-cover ${className}`}
+      muted
+      playsInline
+      preload="metadata"
+    />
+  ) : (
+    <img
+      src={item.src}
+      alt={item.caption}
+      className={`w-full h-full object-cover ${className}`}
+      loading="lazy"
+    />
+  );
 
-const CampusShowcase = () => {
-  // State
-  const [media, setMedia] = useState([]);
-  const [, setOccasions] = useState([]); // occasions currently unused
-  const [loading, setLoading] = useState(true);
+export default function CampusShowcase() {
+  const [media,          setMedia]          = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [occasionFilter, setOccasionFilter] = useState('All');
+  const [sortBy,         setSortBy]         = useState('liked');
+  const [likes,          setLikes]          = useState({});
+  const [liked,          setLiked]          = useState({});
+  const [lightbox,       setLightbox]       = useState({ open: false, idx: 0, items: [] });
 
-  const [occasionFilter, setOccasionFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("liked");
-  const [likes, setLikes] = useState({});
-  const [liked, setLiked] = useState({});
-  const [likeBurst, setLikeBurst] = useState({});
-  const [lightbox, setLightbox] = useState({ open: false, idx: 0, filtered: [] });
-
-  // Fetch data from backend
   useEffect(() => {
     setLoading(true);
     Promise.all([
       axios.get(`${API_BASE}media/`),
-      axios.get(`${API_BASE}occasions/`)
-    ]).then(([mediaRes, occRes]) => {
-      const loadedMedia = (mediaRes.data || []).map(item => ({
+      axios.get(`${API_BASE}occasions/`),
+    ]).then(([mRes]) => {
+      const loaded = (mRes.data || []).map(item => ({
         ...item,
-        type: item.media_type, // "photo" or "video"
-        id: item.id ? String(item.id) : Math.random().toString(36).substring(2, 12),
-        src: item.media_type === "photo" ? item.file : undefined,
-        videoSrc: item.media_type === "video" ? item.file : undefined,
-        thumbnail: item.thumbnail,
-        caption: item.caption || item.title,
-        date: item.date,
-        occasion: item.occasion?.name || "Other",
-        likes: item.likes || 0,
+        type:     item.media_type,
+        id:       item.id ? String(item.id) : Math.random().toString(36).slice(2),
+        src:      item.media_type === 'photo' ? item.file : undefined,
+        videoSrc: item.media_type === 'video' ? item.file : undefined,
+        caption:  item.caption || item.title || '',
+        occasion: item.occasion?.name || 'Other',
+        likes:    item.likes || 0,
       }));
-      setMedia(loadedMedia);
-      setOccasions(occRes.data || []);
-      // Set likes/liked state
-      const likeInit = {};
-      const likedInit = {};
-      loadedMedia.forEach(m => {
-        likeInit[m.id] = m.likes;
-        likedInit[m.id] = false;
-      });
-      setLikes(likeInit);
-      setLiked(likedInit);
+      setMedia(loaded);
+      const lk = {}, ld = {};
+      loaded.forEach(m => { lk[m.id] = m.likes; ld[m.id] = false; });
+      setLikes(lk);
+      setLiked(ld);
     }).finally(() => setLoading(false));
   }, []);
 
-  // Get unique occasions for filters
-  const uniqueOccasions = Array.from(new Set(media.map(m => m.occasion))).filter(Boolean).sort();
-  const filters = [{ label: "All", value: "All" }, ...uniqueOccasions.map(o => ({ label: o, value: o }))];
-
-  // Filter and sort media
-  const filtered = sortMedia(
-    media.filter(
-      m => occasionFilter === "All" || m.occasion === occasionFilter
-    ),
-    sortBy
-  );
-
-  // Trending/featured
-  const trending = trendingMedia(media);
-
-  // Like handler
-  function handleLike(id, type) {
+  const handleLike = (id) => {
     if (liked[id]) return;
-    // Find media object for API
-    const mediaItem = media.find(m => m.id === id);
-    if (!mediaItem) return;
-    axios.post(`${API_BASE}likes/`, { media: mediaItem.id })
-      .catch(() => {})
-      .then(() => {
-        setLikes(likes => ({ ...likes, [id]: (likes[id] || 0) + 1 }));
-        setLiked(liked => ({ ...liked, [id]: true }));
-        setLikeBurst(lb => ({ ...lb, [id]: true }));
-        setTimeout(() => setLikeBurst(lb => ({ ...lb, [id]: false })), 700);
-      });
-  }
+    const item = media.find(m => m.id === id);
+    if (!item) return;
+    axios.post(`${API_BASE}likes/`, { media: item.id }).catch(() => {});
+    setLikes(p => ({ ...p, [id]: (p[id] || 0) + 1 }));
+    setLiked(p => ({ ...p, [id]: true }));
+  };
 
-  // Lightbox handlers
-  const openLightbox = idx =>
-    setLightbox({ open: true, idx, filtered });
-  const closeLightbox = () =>
-    setLightbox({ open: false, idx: 0, filtered: [] });
+  const uniqueOccasions = Array.from(new Set(media.map(m => m.occasion))).filter(Boolean).sort();
+  const filters = ['All', ...uniqueOccasions];
 
-  // Keyboard navigation for lightbox
+  const filtered = sortMedia(
+    media.filter(m => occasionFilter === 'All' || m.occasion === occasionFilter),
+    sortBy,
+  );
+  const trending = sortMedia([...media], 'liked').slice(0, 3);
+
+  /* Lightbox */
+  const openLightbox = (idx, items = filtered) =>
+    setLightbox({ open: true, idx, items });
+  const closeLightbox = useCallback(() =>
+    setLightbox({ open: false, idx: 0, items: [] }), []);
+  const prevLb = useCallback(() =>
+    setLightbox(l => ({ ...l, idx: (l.idx + l.items.length - 1) % l.items.length })), []);
+  const nextLb = useCallback(() =>
+    setLightbox(l => ({ ...l, idx: (l.idx + 1) % l.items.length })), []);
+
   const lightboxRef = useRef();
   useEffect(() => {
     if (!lightbox.open) return;
-    function handleKey(e) {
-      if (e.key === "ArrowLeft") prevLightbox();
-      if (e.key === "ArrowRight") nextLightbox();
-      if (e.key === "Escape") closeLightbox();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-    // eslint-disable-next-line
-  }, [lightbox]);
+    const handler = (e) => {
+      if (e.key === 'ArrowLeft')  prevLb();
+      if (e.key === 'ArrowRight') nextLb();
+      if (e.key === 'Escape')     closeLightbox();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightbox.open, prevLb, nextLb, closeLightbox]);
 
-  function prevLightbox() {
-    setLightbox(l => ({
-      ...l,
-      idx: (l.idx + l.filtered.length - 1) % l.filtered.length
-    }));
-  }
-  function nextLightbox() {
-    setLightbox(l => ({
-      ...l,
-      idx: (l.idx + 1) % l.filtered.length
-    }));
-  }
-
-  // Dynamic background
-  const bg = dynamicBg(occasionFilter);
+  const lbItem = lightbox.items[lightbox.idx];
 
   return (
-    <div className="campus-showcase" style={{ background: bg }}>
-      {/* Hero */}
-      <section className="cs-hero">
-        <div className="cs-hero-bg"></div>
-        <h2>
-          <span className="cs-anim-text">Campus Showcase</span>
-        </h2>
-        <p>
-          Experience the vibrant life at PKFokam Institute of Excellence—watch, relive, and share our best moments!
-        </p>
-        <div className="cs-floating-balls">
-          <span className="cs-ball cs-ball1"></span>
-          <span className="cs-ball cs-ball2"></span>
-          <span className="cs-ball cs-ball3"></span>
-        </div>
-      </section>
+    <div className="bg-slate-50 dark:bg-navy-950 min-h-full">
 
-      {/* Filters & Sort */}
-      <div className="cs-controls">
-        <div className="cs-filter-group">
-          {filters.map(f => (
-            <button
-              key={f.value}
-              className={`cs-filter-btn${occasionFilter === f.value ? " active" : ""}`}
-              style={{ "--filter-color": OCCASION_COLORS[f.value] || "#1d2540" }}
-              onClick={() => setOccasionFilter(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
+      {/* ── Hero ── */}
+      <div
+        className="relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg,#000D2E 0%,#001F5B 60%,#001840 100%)' }}
+      >
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `repeating-linear-gradient(45deg,rgba(255,215,0,.03) 0,rgba(255,215,0,.03) 1px,transparent 0,transparent 50%),
+              repeating-linear-gradient(-45deg,rgba(255,215,0,.03) 0,rgba(255,215,0,.03) 1px,transparent 0,transparent 50%)`,
+            backgroundSize: '32px 32px',
+          }}
+        />
+        <div aria-hidden="true" className="absolute top-0 right-0 w-96 h-96 rounded-full bg-gold/5 blur-[120px] pointer-events-none" />
+        <div className="relative max-w-4xl mx-auto px-6 py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+            style={{ background: 'rgba(255,215,0,.1)', border: '1px solid rgba(255,215,0,.2)' }}>
+            <FiCamera size={28} className="text-gold" aria-hidden="true" />
+          </div>
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5
+            border border-gold/25 bg-gold/8 text-[11px] font-black tracking-widest uppercase text-gold">
+            Campus Showcase
+          </span>
+          <h1 className="text-4xl lg:text-5xl font-black text-white leading-tight mb-4">
+            Campus <span className="text-gold">Life &amp; Moments</span>
+          </h1>
+          <p className="text-white/55 text-base leading-relaxed max-w-xl mx-auto">
+            Experience the vibrant life at PKFokam Institute of Excellence — watch, relive,
+            and share our best moments.
+          </p>
         </div>
-        <div className="cs-sort-group">
-          <select value={sortBy} className="cs-sort-select" onChange={e => setSortBy(e.target.value)}>
+      </div>
+
+      {/* ── Controls ── */}
+      <div className="sticky top-0 z-10 bg-white/95 dark:bg-navy-900/95 backdrop-blur-md
+        border-b border-slate-200 dark:border-navy-700/40 shadow-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex flex-wrap items-center gap-3">
+          {/* Filter pills */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin flex-1 pb-0.5">
+            {filters.map(f => (
+              <button
+                key={f}
+                onClick={() => setOccasionFilter(f)}
+                aria-pressed={occasionFilter === f}
+                className={[
+                  'flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap',
+                  occasionFilter === f
+                    ? 'text-navy-900 shadow-sm'
+                    : 'text-slate-500 dark:text-navy-400 bg-slate-100 dark:bg-navy-800 hover:bg-slate-200 dark:hover:bg-navy-700',
+                ].join(' ')}
+                style={occasionFilter === f ? { background: 'linear-gradient(135deg,#FFD700,#FFEE55)' } : undefined}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort */}
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold
+              bg-slate-100 dark:bg-navy-800 border border-slate-200 dark:border-navy-700/50
+              text-slate-700 dark:text-navy-200
+              focus:outline-none focus:border-gold/50 transition-all"
+            aria-label="Sort media"
+          >
             <option value="liked">Most Liked</option>
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
@@ -213,222 +189,271 @@ const CampusShowcase = () => {
         </div>
       </div>
 
-      {/* Trending Section */}
-      <section className="cs-section cs-trending">
-        <h3>🔥 Trending This Week</h3>
-        <div className="cs-trending-cards">
-          {trending.map((m, i) => (
-            <div
-              className={`cs-trending-card animated-card`}
-              style={{
-                "--trend-color": OCCASION_COLORS[m.occasion] || "#ffd700",
-                animationDelay: `${i * 0.13 + 0.1}s`
-              }}
-              key={m.id}
-              tabIndex={0}
-              onClick={() => {
-                const idx = filtered.findIndex(f => f.id === m.id);
-                openLightbox(idx > -1 ? idx : 0);
-              }}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  const idx = filtered.findIndex(f => f.id === m.id);
-                  openLightbox(idx > -1 ? idx : 0);
-                }
-              }}
-            >
-              <div className="cs-media-thumb">
-                {m.type === "video" ? (
-                  <video
-                    className="cs-media-video"
-                    src={m.videoSrc}
-                    poster={m.thumbnail}
-                    controls
-                    style={{
-                      width: "95%",
-                      height: "120px",
-                      objectFit: "cover",
-                      borderRadius: "9px",
-                      display: "block",
-                      background: "#111"
-                    }}
-                  />
-                ) : (
-                  <img
-                    src={m.src}
-                    alt={m.caption}
-                    className="cs-media-img"
-                    style={{
-                      width: "95%",
-                      height: "120px",
-                      objectFit: "cover",
-                      borderRadius: "9px",
-                      display: "block"
-                    }}
-                  />
-                )}
-                <span className="cs-glow"></span>
-              </div>
-              <div className="cs-trend-info">
-                <div className="cs-trend-title">{m.title || m.caption}</div>
-                <div className="cs-card-meta">
-                  <span className="cs-date">{formatDate(m.date)}</span>
-                  <span className="cs-occasion">{m.occasion}</span>
-                </div>
-                <div className="cs-trend-likes">
-                  <span role="img" aria-label="like">❤️</span> {likes[m.id] || m.likes}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
 
-      {/* Main Gallery */}
-      <section className="cs-section">
-        <h3>Gallery</h3>
-        {loading ? (
-          <div style={{ textAlign: "center", fontWeight: "bold" }}>Loading...</div>
-        ) : (
-          <div className="cs-gallery">
-            {filtered.map((m, idx) => (
-              <div
-                className={`cs-card animated-card${m.type === "video" ? " cs-video-card" : " cs-photo-card"}`}
-                key={m.id}
-                style={{ animationDelay: `${idx * 0.08 + 0.2}s` }}
-                tabIndex={0}
-                onClick={() => openLightbox(idx)}
-                onKeyDown={e => { if (e.key === "Enter") openLightbox(idx); }}
-              >
-                <div className="cs-media-thumb">
-                  {m.type === "video" ? (
-                    <video
-                      className="cs-media-video"
-                      src={m.videoSrc}
-                      poster={m.thumbnail}
-                      controls
-                      style={{
-                        width: "95%",
-                        height: "120px",
-                        objectFit: "cover",
-                        borderRadius: "9px",
-                        display: "block",
-                        background: "#111"
-                      }}
-                    />
-                  ) : (
-                    <img
-                      src={m.src}
-                      alt={m.caption}
-                      className="cs-media-img"
-                      style={{
-                        width: "95%",
-                        height: "120px",
-                        objectFit: "cover",
-                        borderRadius: "9px",
-                        display: "block"
-                      }}
-                    />
-                  )}
-                  <span className="cs-glow"></span>
-                </div>
-                <div className="cs-card-title">{m.title || m.caption}</div>
-                <div className="cs-card-meta">
-                  <span className="cs-date">{formatDate(m.date)}</span>
-                  <span className="cs-occasion">{m.occasion}</span>
-                </div>
+        {/* ── Trending ── */}
+        {trending.length > 0 && (
+          <section aria-labelledby="trending-heading">
+            <div className="flex items-center gap-2 mb-4">
+              <FiTrendingUp size={16} className="text-gold" aria-hidden="true" />
+              <h2 id="trending-heading" className="text-lg font-black text-slate-900 dark:text-white">
+                Trending This Week
+              </h2>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-5">
+              {trending.map((m, i) => (
                 <button
-                  className={`cs-like-btn${liked[m.id] ? " liked" : ""}`}
-                  onClick={e => { e.stopPropagation(); handleLike(m.id, m.type); }}
-                  title={liked[m.id] ? "You liked this!" : "Like"}
-                  aria-label="Like"
-                  tabIndex={0}
-                  disabled={liked[m.id]}
+                  key={m.id}
+                  onClick={() => {
+                    const idx = filtered.findIndex(f => f.id === m.id);
+                    openLightbox(idx > -1 ? idx : 0);
+                  }}
+                  className="group relative text-left rounded-2xl overflow-hidden
+                    border border-slate-200 dark:border-navy-700/40
+                    hover:border-gold/40 hover:shadow-lg transition-all
+                    bg-white dark:bg-navy-900 focus-visible:ring-2 focus-visible:ring-gold"
+                  style={{ animationDelay: `${i * 80}ms` }}
+                  aria-label={`View ${m.caption}`}
                 >
-                  <span role="img" aria-label="like">❤️</span>
-                  <span className="cs-like-count">{likes[m.id]}</span>
-                  <LikeBurst show={likeBurst[m.id]} />
+                  <div className="relative h-40 overflow-hidden">
+                    <MediaThumb item={m} className="group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 pointer-events-none"
+                      style={{ background: 'linear-gradient(to top,rgba(0,0,0,.5) 0%,transparent 60%)' }}
+                      aria-hidden="true"
+                    />
+                    {m.type === 'video' && (
+                      <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm
+                        flex items-center justify-center">
+                        <FiVideo size={13} className="text-white" aria-hidden="true" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug mb-1 truncate">
+                      {m.title || m.caption}
+                    </p>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-navy-500">
+                      <span>{formatDate(m.date)}</span>
+                      <span className="flex items-center gap-1 text-gold font-bold">
+                        <FiHeart size={11} fill="#FFD700" aria-hidden="true" />
+                        {likes[m.id] ?? m.likes}
+                      </span>
+                    </div>
+                    <span className="mt-2 inline-block px-2 py-0.5 rounded-full
+                      text-[10px] font-bold bg-navy-100 dark:bg-navy-800 text-navy-600 dark:text-navy-300">
+                      {m.occasion}
+                    </span>
+                  </div>
                 </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </section>
         )}
-      </section>
 
-      {/* Lightbox Modal */}
-      {lightbox.open && (
-        <div className="cs-lightbox" onClick={closeLightbox}>
-          <div
-            className="cs-lightbox-content"
-            onClick={e => e.stopPropagation()}
-            ref={lightboxRef}
-            style={{
-              maxWidth: "98vw",
-              maxHeight: "95vh",
-              padding: "1.5rem 1.5rem 1rem 1.5rem"
-            }}
-          >
-            <button className="cs-lightbox-close" onClick={closeLightbox}>&times;</button>
-            <button className="cs-lightbox-arrow left" onClick={prevLightbox}>&#8592;</button>
-            <button className="cs-lightbox-arrow right" onClick={nextLightbox}>&#8594;</button>
-            {lightbox.filtered[lightbox.idx]?.type === "video" ? (
-              <video
-                className="cs-lightbox-media"
-                src={lightbox.filtered[lightbox.idx]?.videoSrc}
-                poster={lightbox.filtered[lightbox.idx]?.thumbnail}
-                controls
-                autoPlay
-                style={{
-                  width: "100%",
-                  maxWidth: "85vw",
-                  maxHeight: "75vh",
-                  objectFit: "contain",
-                  borderRadius: "16px",
-                  background: "#111",
-                  display: "block",
-                  margin: "0 auto"
-                }}
-              />
-            ) : (
-              <img
-                src={lightbox.filtered[lightbox.idx]?.src}
-                alt={lightbox.filtered[lightbox.idx]?.caption}
-                className="cs-lightbox-media"
-                style={{
-                  width: "100%",
-                  maxWidth: "85vw",
-                  maxHeight: "75vh",
-                  objectFit: "contain",
-                  borderRadius: "16px",
-                  display: "block",
-                  margin: "0 auto"
-                }}
-              />
-            )}
-            <div className="cs-lightbox-caption">
-              <div className="cs-lb-title">{lightbox.filtered[lightbox.idx]?.title || lightbox.filtered[lightbox.idx]?.caption}</div>
-              <div className="cs-lb-meta">
-                <span className="cs-date">{formatDate(lightbox.filtered[lightbox.idx]?.date)}</span>
-                <span className="cs-occasion">{lightbox.filtered[lightbox.idx]?.occasion}</span>
-                <button
-                  className={`cs-like-btn${liked[lightbox.filtered[lightbox.idx]?.id] ? " liked" : ""}`}
-                  onClick={e => { e.stopPropagation(); handleLike(lightbox.filtered[lightbox.idx]?.id, lightbox.filtered[lightbox.idx]?.type); }}
-                  title={liked[lightbox.filtered[lightbox.idx]?.id] ? "You liked this!" : "Like"}
-                  aria-label="Like"
-                  tabIndex={0}
-                  disabled={liked[lightbox.filtered[lightbox.idx]?.id]}
+        {/* ── Main Gallery ── */}
+        <section aria-labelledby="gallery-heading">
+          <div className="flex items-center gap-2 mb-4">
+            <FiGrid size={16} className="text-gold" aria-hidden="true" />
+            <h2 id="gallery-heading" className="text-lg font-black text-slate-900 dark:text-white">
+              Gallery
+              <span className="ml-2 text-sm font-bold text-slate-400 dark:text-navy-500">
+                ({filtered.length})
+              </span>
+            </h2>
+          </div>
+
+          {loading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden bg-white dark:bg-navy-900 border border-slate-100 dark:border-navy-700/40">
+                  <div className="h-44 bg-slate-100 dark:bg-navy-800 animate-pulse" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-slate-100 dark:bg-navy-800 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-slate-100 dark:bg-navy-800 rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-20 text-slate-400 dark:text-navy-500">
+              <FiCamera size={36} className="mx-auto mb-3 opacity-40" aria-hidden="true" />
+              <p className="text-sm">No media found for this filter.</p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filtered.map((m, idx) => (
+                <div
+                  key={m.id}
+                  className="group relative bg-white dark:bg-navy-900 rounded-2xl overflow-hidden
+                    border border-slate-100 dark:border-navy-700/40
+                    hover:border-gold/30 hover:shadow-lg transition-all hover:-translate-y-0.5"
                 >
-                  <span role="img" aria-label="like">❤️</span>
-                  <span className="cs-like-count">{likes[lightbox.filtered[lightbox.idx]?.id]}</span>
-                  <LikeBurst show={likeBurst[lightbox.filtered[lightbox.idx]?.id]} />
+                  {/* Thumb — clickable */}
+                  <button
+                    onClick={() => openLightbox(idx)}
+                    className="block relative w-full h-44 overflow-hidden focus-visible:ring-2 focus-visible:ring-gold"
+                    aria-label={`View ${m.caption}`}
+                  >
+                    <MediaThumb item={m} className="group-hover:scale-105 transition-transform duration-500" />
+                    <div className="absolute inset-0 pointer-events-none bg-black/0 group-hover:bg-black/10 transition-colors" aria-hidden="true" />
+                    {m.type === 'video' && (
+                      <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm
+                        flex items-center justify-center">
+                        <FiVideo size={13} className="text-white" aria-hidden="true" />
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Info */}
+                  <div className="p-4">
+                    <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug mb-1.5 truncate">
+                      {m.title || m.caption}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] text-slate-400 dark:text-navy-500">{formatDate(m.date)}</span>
+                        <span className="text-[10px] font-bold text-navy-600 dark:text-navy-400 bg-navy-50 dark:bg-navy-800
+                          px-2 py-0.5 rounded-full w-fit border border-navy-100 dark:border-navy-700/40">
+                          {m.occasion}
+                        </span>
+                      </div>
+
+                      {/* Like button */}
+                      <button
+                        onClick={() => handleLike(m.id)}
+                        disabled={liked[m.id]}
+                        aria-label={liked[m.id] ? 'Liked' : 'Like this photo'}
+                        className={[
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all',
+                          liked[m.id]
+                            ? 'bg-red-50 dark:bg-red-900/20 text-red-500 cursor-default border border-red-100 dark:border-red-500/20'
+                            : 'bg-slate-50 dark:bg-navy-800 text-slate-500 dark:text-navy-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 border border-slate-200 dark:border-navy-700/40 hover:border-red-100',
+                        ].join(' ')}
+                      >
+                        <FiHeart
+                          size={12}
+                          aria-hidden="true"
+                          fill={liked[m.id] ? 'currentColor' : 'transparent'}
+                        />
+                        {likes[m.id] ?? m.likes}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ── Lightbox ── */}
+      {lightbox.open && lbItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+          onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Viewing: ${lbItem.caption}`}
+        >
+          <div
+            ref={lightboxRef}
+            className="relative w-full max-w-4xl animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Close */}
+            <button
+              onClick={closeLightbox}
+              aria-label="Close lightbox"
+              className="absolute -top-12 right-0 w-10 h-10 rounded-xl
+                bg-white/10 hover:bg-white/20 flex items-center justify-center
+                text-white transition-colors"
+            >
+              <FiX size={18} aria-hidden="true" />
+            </button>
+
+            {/* Prev */}
+            <button
+              onClick={prevLb}
+              aria-label="Previous"
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-14
+                w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20
+                flex items-center justify-center text-white transition-colors
+                max-sm:hidden"
+            >
+              <FiChevronLeft size={20} aria-hidden="true" />
+            </button>
+
+            {/* Media */}
+            <div className="rounded-2xl overflow-hidden bg-black" style={{ maxHeight: '75vh' }}>
+              {lbItem.type === 'video' ? (
+                <video
+                  src={lbItem.videoSrc}
+                  poster={lbItem.thumbnail}
+                  controls autoPlay
+                  className="w-full max-h-[75vh] object-contain"
+                />
+              ) : (
+                <img
+                  src={lbItem.src}
+                  alt={lbItem.caption}
+                  className="w-full max-h-[75vh] object-contain"
+                />
+              )}
+            </div>
+
+            {/* Next */}
+            <button
+              onClick={nextLb}
+              aria-label="Next"
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-14
+                w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20
+                flex items-center justify-center text-white transition-colors
+                max-sm:hidden"
+            >
+              <FiChevronRight size={20} aria-hidden="true" />
+            </button>
+
+            {/* Caption bar */}
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <p className="text-white font-bold text-sm">{lbItem.title || lbItem.caption}</p>
+                <p className="text-white/50 text-xs mt-0.5">
+                  {lbItem.occasion} · {formatDate(lbItem.date)}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Mobile arrows */}
+                <button onClick={prevLb} aria-label="Previous" className="sm:hidden w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+                  <FiChevronLeft size={16} aria-hidden="true" />
+                </button>
+                <button onClick={nextLb} aria-label="Next" className="sm:hidden w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+                  <FiChevronRight size={16} aria-hidden="true" />
+                </button>
+                {/* Like in lightbox */}
+                <button
+                  onClick={() => handleLike(lbItem.id)}
+                  disabled={liked[lbItem.id]}
+                  aria-label={liked[lbItem.id] ? 'Liked' : 'Like'}
+                  className={[
+                    'flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                    liked[lbItem.id]
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30 cursor-default'
+                      : 'bg-white/10 text-white hover:bg-red-500/20 hover:text-red-400 border border-white/20',
+                  ].join(' ')}
+                >
+                  <FiHeart size={14} aria-hidden="true" fill={liked[lbItem.id] ? 'currentColor' : 'transparent'} />
+                  {likes[lbItem.id] ?? lbItem.likes}
                 </button>
               </div>
             </div>
+
+            {/* Counter */}
+            <p className="text-center text-white/30 text-xs mt-2">
+              {lightbox.idx + 1} / {lightbox.items.length}
+            </p>
           </div>
         </div>
       )}
     </div>
   );
-};
-
-export default CampusShowcase;
+}

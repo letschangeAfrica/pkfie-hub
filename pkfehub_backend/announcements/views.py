@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import viewsets, permissions, filters
 from rest_framework.response import Response
 from .models import Announcement, AnnouncementView
@@ -26,13 +27,18 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         qs = Announcement.objects.all()
         status_param = self.request.query_params.get("status")
         if status_param == "active":
-            qs = qs.filter(is_active=True, end_date__gte=timezone.now())
+            # Active = is_active True AND (no end_date, or end_date hasn't passed)
+            qs = qs.filter(is_active=True).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=timezone.now())
+            )
         elif status_param == "inactive":
             qs = qs.filter(is_active=False)
         elif status_param == "expired":
             qs = qs.filter(end_date__lt=timezone.now())
+        else:
+            # No filter — return all active by default for safety
+            qs = qs.filter(is_active=True)
 
-        # DRF's OrderingFilter will handle ?ordering=..., but keep this for backward compat:
         ordering = self.request.query_params.get("ordering")
         if ordering:
             qs = qs.order_by(*[o.strip() for o in ordering.split(",")])

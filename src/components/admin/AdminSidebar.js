@@ -1,105 +1,126 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import './AdminSidebar.css';
+import {
+  FiGrid, FiUsers, FiFile, FiBell, FiCalendar,
+  FiMessageSquare, FiCpu, FiSettings, FiHome,
+} from 'react-icons/fi';
 
-const AdminSidebar = ({ collapsed }) => {
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+
+const MENU = [
+  { path: '/admin',              icon: FiGrid,         label: 'Dashboard',       end: true },
+  { path: '/admin/users',        icon: FiUsers,        label: 'User Management'           },
+  { path: '/admin/documents',    icon: FiFile,         label: 'Documents'                 },
+  { path: '/admin/announcements',icon: FiBell,         label: 'Announcements'             },
+  { path: '/admin/events',       icon: FiCalendar,     label: 'Events'                    },
+  { path: '/admin/feedback',     icon: FiMessageSquare,label: 'Feedback'                  },
+  { path: '/admin/ai-model',     icon: FiCpu,          label: 'AI Model'                  },
+  { path: '/admin/settings',     icon: FiSettings,     label: 'Settings'                  },
+];
+
+export default function AdminSidebar({ collapsed }) {
   const { currentUser } = useAuth();
 
-  // Reduced menu: removed Search and Notifications entries
-  const menuItems = [
-    { path: '/admin', icon: 'fas fa-tachometer-alt', label: 'Dashboard' },
-    { path: '/admin/users', icon: 'fas fa-users', label: 'User Management' },
-    { path: '/admin/documents', icon: 'fas fa-file', label: 'Documents' },
-    { path: '/admin/announcements', icon: 'fas fa-bullhorn', label: 'Announcements' },
-    { path: '/admin/events', icon: 'fas fa-calendar', label: 'Events' },
-    { path: '/admin/feedback', icon: 'fas fa-comments', label: 'Feedback' },
-    { path: '/admin/ai-model', icon: 'fas fa-robot', label: 'AI Model' },
-    { path: '/admin/settings', icon: 'fas fa-cog', label: 'Settings' },
-    // removed: /admin/search and /admin/notifications from sidebar
-  ];
+  const avatarUrl = currentUser?.profile?.profile_picture
+    ? (currentUser.profile.profile_picture.startsWith('http')
+        ? currentUser.profile.profile_picture
+        : `${BASE_URL}${currentUser.profile.profile_picture.startsWith('/') ? '' : '/media/'}${currentUser.profile.profile_picture}`)
+    : null;
 
-  const isActive = (path) => {
-    return window.location.pathname === path || window.location.pathname.startsWith(path + '/');
-  };
+  const initials =
+    (currentUser?.first_name?.charAt(0) || '') +
+    (currentUser?.last_name?.charAt(0)  || '');
 
   return (
-    <div className={`adm-sb ${collapsed ? 'adm-sb-collapsed' : ''}`}>
-      <div className="adm-sb-header">
-        {!collapsed ? <h2>PKFIE-Hub Admin</h2> : <div className="adm-sb-logo-mini">PKF</div>}
+    <aside
+      className={`fixed top-0 left-0 h-full z-40 flex flex-col transition-all duration-300
+        ${collapsed ? 'w-16' : 'w-64'}`}
+      style={{ background: '#001020', borderRight: '1px solid rgba(255,215,0,.08)' }}
+    >
+      {/* Logo */}
+      <div className={`flex items-center border-b h-16 flex-shrink-0
+        ${collapsed ? 'justify-center px-0' : 'gap-3 px-5'}
+        border-gold/10`}>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(255,215,0,.15)', border: '1px solid rgba(255,215,0,.25)' }}>
+          <span className="text-xs font-black text-gold">PK</span>
+        </div>
+        {!collapsed && (
+          <span className="text-sm font-black text-white tracking-tight whitespace-nowrap">
+            PKFIE-Hub <span className="text-gold">Admin</span>
+          </span>
+        )}
       </div>
 
-      <nav className="adm-sb-nav">
-        <ul>
-          {menuItems.map(item => (
-            <li key={item.path}>
-              <NavLink
-                to={item.path}
-                end={item.path === '/admin'}
-                className={({ isActive: navIsActive }) =>
-                  `adm-sb-item ${navIsActive || isActive(item.path) ? 'adm-sb-active' : ''}`
-                }
-              >
-                <i className={item.icon} />
-                {!collapsed && <span>{item.label}</span>}
-                {collapsed && <div className="adm-sb-tooltip">{item.label}</div>}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+        {MENU.map(({ path, icon: Icon, label, end }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={end}
+            title={collapsed ? label : undefined}
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-xl transition-all duration-150
+               ${collapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'}
+               ${isActive
+                 ? 'bg-gold/15 text-gold'
+                 : 'text-white/60 hover:bg-white/5 hover:text-white'}`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon
+                  size={16}
+                  aria-hidden="true"
+                  className={`flex-shrink-0 ${isActive ? 'text-gold' : ''}`}
+                />
+                {!collapsed && (
+                  <span className="text-sm font-semibold truncate">{label}</span>
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
       </nav>
 
-      <div className="adm-sb-footer">
-        {!collapsed ? (
-          <div className="adm-sb-user">
-            <div className="adm-sb-avatar">
-              {currentUser?.profile?.profile_picture ? (
-                <img
-                  src={currentUser.profile.profile_picture.startsWith('http')
-                    ? currentUser.profile.profile_picture
-                    : `http://localhost:8000${currentUser.profile.profile_picture.startsWith('/') ? '' : '/media/'}${currentUser.profile.profile_picture}`
-                  }
-                  alt="User avatar"
-                  className="adm-sb-avatar-img"
-                />
-              ) : (
-                <i className="fas fa-user-circle" />
-              )}
-            </div>
-            <div className="adm-sb-details">
-              <h4>{currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Admin User'}</h4>
-              <p>{currentUser ? (currentUser.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : 'Administrator') : 'Administrator'}</p>
-            </div>
+      {/* Footer */}
+      <div className={`border-t border-gold/10 py-3 flex-shrink-0
+        ${collapsed ? 'px-2' : 'px-3'}`}>
+        {/* User info */}
+        <div className={`flex items-center gap-3 mb-2 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center bg-navy-700">
+            {avatarUrl
+              ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              : <span className="text-xs font-black text-gold">{initials || 'A'}</span>
+            }
           </div>
-        ) : (
-          <div className="adm-sb-user-mini">
-            {currentUser?.profile?.profile_picture ? (
-              <img
-                src={currentUser.profile.profile_picture.startsWith('http')
-                  ? currentUser.profile.profile_picture
-                  : `http://localhost:8000${currentUser.profile.profile_picture.startsWith('/') ? '' : '/media/'}${currentUser.profile.profile_picture}`
-                }
-                alt="User avatar"
-                className="adm-sb-avatar-img"
-                style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
-              />
-            ) : (
-              <i className="fas fa-user-circle" />
-            )}
-          </div>
-        )}
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate">
+                {currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Admin User'}
+              </p>
+              <p className="text-[10px] text-gold/70 capitalize">
+                {currentUser?.role || 'Administrator'}
+              </p>
+            </div>
+          )}
+        </div>
 
-        {currentUser?.role === 'admin' && !collapsed && (
+        {/* Switch to main app */}
+        {currentUser?.role === 'admin' && (
           <button
-            className="adm-sb-switch-btn"
-            onClick={() => window.location.href = '/'}
+            onClick={() => { window.location.href = '/'; }}
             title="Switch to Main App"
+            className={`flex items-center gap-2 w-full rounded-xl text-xs font-bold text-white/50
+              hover:text-white hover:bg-white/5 transition-colors py-2
+              ${collapsed ? 'justify-center px-0' : 'px-3'}`}
           >
-            <i className="fas fa-home" /> Main App
+            <FiHome size={13} aria-hidden="true" className="flex-shrink-0" />
+            {!collapsed && 'Main App'}
           </button>
         )}
       </div>
-    </div>
+    </aside>
   );
-};
-
-export default AdminSidebar;
+}

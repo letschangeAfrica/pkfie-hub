@@ -20,6 +20,9 @@
 pkfehub_backend/.env
 
 # Python
+venv/
+.venv/
+env/
 __pycache__/
 *.py[cod]
 *.pyo

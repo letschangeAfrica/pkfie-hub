@@ -1,127 +1,107 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './AdminHeader.css';
+import {
+  FiMenu, FiSearch, FiBell, FiChevronDown,
+  FiUser, FiLogOut,
+} from 'react-icons/fi';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
-const AdminHeader = ({ onToggleSidebar }) => {
+const TYPE_DOT = {
+  warning: 'bg-amber-400',
+  error:   'bg-red-400',
+  success: 'bg-emerald-400',
+  info:    'bg-sky-400',
+};
+
+export default function AdminHeader({ onToggleSidebar }) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [menuOpen,       setMenuOpen]       = useState(false);
+  const [notifOpen,      setNotifOpen]      = useState(false);
+  const [notifications,  setNotifications]  = useState([]);
+  const [loadingNotif,   setLoadingNotif]   = useState(false);
+  const [search,         setSearch]         = useState('');
 
-  const [notifications, setNotifications] = useState([]);
-  const [loadingNotif, setLoadingNotif] = useState(false);
-
-  const [search, setSearch] = useState('');
-
-  const menuRef = useRef(null);
-  const notifDropdownRef = useRef(null);
+  const menuRef        = useRef(null);
+  const notifRef       = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Avatar helper
   const avatarUrl = currentUser?.profile?.profile_picture
     ? (currentUser.profile.profile_picture.startsWith('http')
         ? currentUser.profile.profile_picture
         : `${BASE_URL}${currentUser.profile.profile_picture.startsWith('/') ? '' : '/media/'}${currentUser.profile.profile_picture}`)
     : null;
 
-  // simple normalizer for responses (paginated or not)
-  const normalizeResponseList = (res) => {
-    if (!res || !res.data) return [];
-    return res.data.results || res.data || [];
-  };
+  const initials =
+    (currentUser?.first_name?.charAt(0) || '') +
+    (currentUser?.last_name?.charAt(0)  || '');
 
-  // Fetch notifications when opened
   useEffect(() => {
     let cancel;
-    const fetchNotifications = async () => {
-      setLoadingNotif(true);
-      try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${BASE_URL}/api/notifications/`, {
-          headers: { Authorization: token ? `Bearer ${token}` : undefined },
-          params: { ordering: '-created_at', page_size: 12, unread: false },
-          cancelToken: new axios.CancelToken(c => (cancel = c)),
-        });
-        const list = normalizeResponseList(res);
-        const deduped = Array.from(new Map(list.map(i => [i.id, i])).values()).slice(0, 12);
-        setNotifications(deduped);
-      } catch (err) {
-        if (axios.isCancel(err)) return;
-        console.warn('Failed to fetch notifications', err);
-        setNotifications([]);
-      } finally {
-        setLoadingNotif(false);
-      }
-    };
-
-    if (notifOpen) fetchNotifications();
-    return () => cancel && cancel();
+    if (!notifOpen) return;
+    setLoadingNotif(true);
+    const token = localStorage.getItem('token');
+    axios.get(`${BASE_URL}/api/notifications/`, {
+      headers: { Authorization: token ? `Bearer ${token}` : undefined },
+      params: { ordering: '-created_at', page_size: 12, unread: false },
+      cancelToken: new axios.CancelToken(c => (cancel = c)),
+    })
+      .then(res => {
+        const list = res.data.results || res.data || [];
+        setNotifications(Array.from(new Map(list.map(i => [i.id, i])).values()).slice(0, 12));
+      })
+      .catch(err => { if (!axios.isCancel(err)) setNotifications([]); })
+      .finally(() => setLoadingNotif(false));
+    return () => cancel?.();
   }, [notifOpen]);
 
-  // Close dropdowns on outside click
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target) && !e.target.closest('.adm-hdr-notif-btn')) setNotifOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handler = (e) => {
+      if (menuRef.current  && !menuRef.current.contains(e.target))  setMenuOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target))  setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Keyboard "/" focuses the admin search
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === '/' && document.activeElement !== searchInputRef.current && !menuOpen) {
+      if (e.key === '/' && document.activeElement !== searchInputRef.current) {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [menuOpen]);
+  }, []);
 
-  const unreadNotifCount = notifications.filter(n => !n.read).length;
+  const unread = notifications.filter(n => !n.read).length;
 
-  // navigation helper
   const goTo = (path) => {
-    try {
-      navigate(path);
-      setTimeout(() => {
-        if (window.location.pathname !== path) window.location.href = path;
-      }, 120);
-    } catch (e) {
-      window.location.href = path;
-    }
+    try { navigate(path); } catch { window.location.href = path; }
   };
 
-  // Mark notification read (PATCH) then navigate to list or link
-  const handleNotificationClick = async (n) => {
-    if (!n) return;
+  const handleNotifClick = async (n) => {
     if (!n.read) {
       try {
         const token = localStorage.getItem('token');
         await axios.patch(`${BASE_URL}/api/notifications/${n.id}/`, { read: true }, {
           headers: { Authorization: token ? `Bearer ${token}` : undefined },
         });
-      } catch (err) {
-        console.warn('markNotifAsRead failed', err);
-      }
+      } catch { /* ignore */ }
     }
     setNotifOpen(false);
     if (n.link) {
-      if (n.link.startsWith('http')) window.open(n.link, '_blank');
-      else goTo(n.link);
+      n.link.startsWith('http') ? window.open(n.link, '_blank') : goTo(n.link);
     } else {
       goTo('/admin/notifications');
     }
   };
 
-  // Admin search submit
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (!search.trim()) return;
@@ -130,141 +110,182 @@ const AdminHeader = ({ onToggleSidebar }) => {
     searchInputRef.current?.blur();
   };
 
-  // Logout handler
   const handleLogout = () => {
     logout();
     setMenuOpen(false);
     goTo('/admin/login');
   };
 
-  // Preview fallback text
-  const previewText = (item) => {
-    if (!item) return '';
-    if (item.title && item.title.trim()) return item.title;
-    if (item.text && item.text.trim()) return item.text.length > 120 ? item.text.slice(0, 117) + '...' : item.text;
-    if (item.created_at) return new Date(item.created_at).toLocaleString();
+  const previewText = (n) => {
+    if (!n) return '';
+    if (n.title?.trim())       return n.title;
+    if (n.text?.trim())        return n.text.length > 80 ? n.text.slice(0, 77) + '…' : n.text;
+    if (n.created_at)          return new Date(n.created_at).toLocaleString();
     return 'No details';
   };
 
   return (
-    <header className="adm-hdr">
-      <div className="adm-hdr-left">
-        <button className="adm-hdr-toggle" onClick={onToggleSidebar} aria-label="Toggle sidebar">
-          <i className="fas fa-bars" />
+    <header className="flex items-center justify-between h-16 px-5 flex-shrink-0
+      border-b border-gold/10"
+      style={{ background: '#001020' }}>
+
+      {/* Left */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onToggleSidebar}
+          aria-label="Toggle sidebar"
+          className="w-9 h-9 rounded-xl flex items-center justify-center
+            text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <FiMenu size={18} aria-hidden="true" />
         </button>
-        <h1 className="adm-hdr-title">Admin Panel</h1>
+        <span className="text-sm font-black text-white hidden sm:block">Admin Panel</span>
       </div>
 
-      <div className="adm-hdr-right">
-        <form className="adm-hdr-search" onSubmit={handleSearchSubmit} role="search" autoComplete="off">
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search admin..."
-            aria-label="Search admin"
-          />
-          <button type="submit" aria-label="Search">
-            <i className="fas fa-search" />
-          </button>
+      {/* Right */}
+      <div className="flex items-center gap-2">
+
+        {/* Search */}
+        <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center">
+          <div className="relative">
+            <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" aria-hidden="true" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search admin… /"
+              aria-label="Search admin"
+              className="w-52 pl-8 pr-3 py-2 rounded-xl bg-white/5 border border-white/8
+                text-white text-xs placeholder-white/30 focus:outline-none focus:border-gold/30
+                transition-colors"
+            />
+          </div>
         </form>
 
-        <div className="adm-hdr-actions">
-          {/* Notifications */}
-          <div className="adm-hdr-notif" ref={notifDropdownRef}>
-            <button
-              className="adm-hdr-btn adm-hdr-notif-btn"
-              title="Notifications"
-              onClick={() => setNotifOpen(v => !v)}
-              aria-expanded={notifOpen}
-            >
-              <i className="fas fa-bell" />
-              {unreadNotifCount > 0 && <span className="adm-hdr-badge">{unreadNotifCount}</span>}
-            </button>
+        {/* Notifications */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setNotifOpen(v => !v)}
+            aria-label="Notifications"
+            aria-expanded={notifOpen}
+            className="relative w-9 h-9 rounded-xl flex items-center justify-center
+              text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <FiBell size={16} aria-hidden="true" />
+            {unread > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-gold text-navy-900
+                text-[9px] font-black flex items-center justify-center leading-none">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </button>
 
-            {notifOpen && (
-              <div className="adm-hdr-dropdown adm-hdr-notif-dropdown" role="dialog" aria-label="Notifications list">
-                <div className="adm-hdr-dropdown-header">Notifications</div>
-
+          {notifOpen && (
+            <div className="absolute right-0 top-11 w-80 rounded-2xl shadow-xl z-50
+              bg-navy-900 border border-navy-700/60 overflow-hidden"
+              role="dialog" aria-label="Notifications">
+              <div className="px-4 py-3 border-b border-navy-700/40">
+                <p className="text-xs font-black text-white uppercase tracking-wide">Notifications</p>
+              </div>
+              <div className="max-h-72 overflow-y-auto divide-y divide-navy-700/30">
                 {loadingNotif ? (
-                  <div className="adm-hdr-dropdown-empty">Loading...</div>
+                  <div className="px-4 py-6 text-center text-xs text-navy-500">Loading…</div>
                 ) : notifications.length === 0 ? (
-                  <div className="adm-hdr-dropdown-empty">No notifications</div>
+                  <div className="px-4 py-6 text-center text-xs text-navy-500">No notifications</div>
                 ) : (
                   notifications.map(n => (
-                    <div
+                    <button
                       key={n.id}
-                      className={`adm-hdr-item ${n.read ? 'read' : 'unread'}`}
-                      onClick={() => handleNotificationClick(n)}
+                      onClick={() => handleNotifClick(n)}
+                      className={`w-full text-left px-4 py-3 hover:bg-navy-700/30 transition-colors flex items-start gap-3
+                        ${!n.read ? 'bg-gold/5' : ''}`}
                     >
-                      <div className="adm-hdr-item-text">{previewText(n)}</div>
-                      <div className="adm-hdr-item-meta">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
-                    </div>
+                      <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0
+                        ${!n.read ? (TYPE_DOT[n.notification_type] || 'bg-gold') : 'bg-navy-700'}`} />
+                      <div className="min-w-0">
+                        <p className={`text-xs leading-snug truncate ${!n.read ? 'font-bold text-white' : 'text-navy-300'}`}>
+                          {previewText(n)}
+                        </p>
+                        {n.created_at && (
+                          <p className="text-[10px] text-navy-600 mt-0.5">
+                            {new Date(n.created_at).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </button>
                   ))
                 )}
-
-                <div className="adm-hdr-dropdown-footer">
-                  <button onClick={() => { goTo('/admin/notifications'); setNotifOpen(false); }} className="adm-hdr-dropdown-link">View all</button>
-                </div>
               </div>
-            )}
-          </div>
-
-          {/* User/Profile */}
-          <div className="adm-hdr-user" ref={menuRef}>
-            <div
-              className="adm-hdr-user-btn"
-              onClick={() => setMenuOpen(v => !v)}
-              aria-haspopup="true"
-              aria-expanded={menuOpen}
-            >
-              <div className="adm-hdr-avatar">
-                {avatarUrl ? <img src={avatarUrl} alt="avatar" /> : <i className="fas fa-user-circle" />}
+              <div className="px-4 py-2.5 border-t border-navy-700/40">
+                <button
+                  onClick={() => { goTo('/admin/notifications'); setNotifOpen(false); }}
+                  className="text-xs font-bold text-gold hover:text-gold/80 transition-colors"
+                >
+                  View all notifications
+                </button>
               </div>
-              <span className="adm-hdr-name">{currentUser ? `${currentUser.first_name || currentUser.username}` : 'Admin'}</span>
-              <i className="fas fa-chevron-down" />
             </div>
+          )}
+        </div>
 
-            {menuOpen && (
-              <div className="adm-hdr-dropdown" role="menu" aria-label="User menu">
-                <div className="adm-hdr-dropdown-top">
-                  <div className="adm-hdr-avatar">
-                    {avatarUrl ? <img src={avatarUrl} alt="avatar" /> : <i className="fas fa-user-circle" />}
-                  </div>
-                  <div>
-                    <div className="adm-hdr-dropdown-name">{currentUser?.first_name} {currentUser?.last_name}</div>
-                    <div className="adm-hdr-dropdown-role">{currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1) : 'Administrator'}</div>
-                  </div>
-                </div>
+        {/* User menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl
+              hover:bg-white/5 transition-colors"
+          >
+            <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center bg-navy-700 flex-shrink-0">
+              {avatarUrl
+                ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                : <span className="text-[10px] font-black text-gold">{initials || 'A'}</span>
+              }
+            </div>
+            <span className="hidden sm:block text-xs font-bold text-white/80">
+              {currentUser?.first_name || 'Admin'}
+            </span>
+            <FiChevronDown size={12} className="text-white/40" aria-hidden="true" />
+          </button>
 
-                <hr className="adm-hdr-dropdown-divider" />
-
+          {menuOpen && (
+            <div className="absolute right-0 top-11 w-52 rounded-2xl shadow-xl z-50
+              bg-navy-900 border border-navy-700/60 overflow-hidden"
+              role="menu">
+              <div className="px-4 py-3 border-b border-navy-700/40">
+                <p className="text-xs font-black text-white">
+                  {currentUser?.first_name} {currentUser?.last_name}
+                </p>
+                <p className="text-[11px] text-gold/70 capitalize mt-0.5">
+                  {currentUser?.role || 'Administrator'}
+                </p>
+              </div>
+              <div className="p-1.5 space-y-0.5">
                 <button
-                  className="adm-hdr-dropdown-btn"
-                  type="button"
-                  onClick={() => {
-                    goTo('/profile');
-                    setMenuOpen(false);
-                  }}
+                  onClick={() => { goTo('/profile'); setMenuOpen(false); }}
+                  role="menuitem"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold
+                    text-navy-300 hover:text-white hover:bg-navy-700/40 transition-colors"
                 >
-                  <i className="fas fa-user" /> View Profile
+                  <FiUser size={13} aria-hidden="true" />
+                  View Profile
                 </button>
-
                 <button
-                  className="adm-hdr-dropdown-btn"
-                  type="button"
                   onClick={handleLogout}
+                  role="menuitem"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-xs font-bold
+                    text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
                 >
-                  <i className="fas fa-sign-out-alt" /> Logout
+                  <FiLogOut size={13} aria-hidden="true" />
+                  Logout
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
-};
-
-export default AdminHeader;
+}

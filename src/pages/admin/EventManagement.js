@@ -1,113 +1,94 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import './AnnouncementManagement.css'; // Reuse the same CSS for consistent look
+import {
+  FiCalendar, FiSearch, FiPlus, FiEdit2, FiTrash2,
+  FiEye, FiEyeOff, FiX,
+} from 'react-icons/fi';
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const BASE_URL  = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const PAGE_SIZE = 50;
 
-const EVENT_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'academic', label: 'Academic' },
-  { value: 'social', label: 'Social' },
-  { value: 'career', label: 'Career' },
-  { value: 'workshop', label: 'Workshop' },
-];
+const TYPE_COLOR = {
+  academic: 'bg-sky-500/20 text-sky-400',
+  social:   'bg-emerald-500/20 text-emerald-400',
+  career:   'bg-violet-500/20 text-violet-400',
+  workshop: 'bg-amber-500/20 text-amber-400',
+};
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'All Statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
+const EMPTY_FORM = {
+  title: '', description: '', event_type: 'academic',
+  start_time: '', end_time: '', location: '', organizer: '', max_attendees: '',
+};
 
-const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest to Oldest' },
-  { value: 'oldest', label: 'Oldest to Newest' },
-];
+function ModalOverlay({ children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
+    </div>
+  );
+}
 
-const PAGE_SIZE = 50; // Admin should see up to 50 events per page
+function Label({ children }) {
+  return (
+    <label className="block text-xs font-bold text-navy-400 mb-1.5 uppercase tracking-wide">
+      {children}
+    </label>
+  );
+}
 
-const EventManagement = () => {
-  const [events, setEvents] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    event_type: 'academic',
-    start_time: '',
-    end_time: '',
-    location: '',
-    organizer: '',
-    max_attendees: ''
-  });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sortOrder, setSortOrder] = useState('newest');
-  const [confirmDelete, setConfirmDelete] = useState({ show: false, eventId: null });
-  const [confirmToggle, setConfirmToggle] = useState({ show: false, event: null });
+const inputCls = `w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+  text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/50 transition-colors`;
 
-  useEffect(() => {
-    fetchEvents();
-    // eslint-disable-next-line
-  }, []);
+export default function EventManagement() {
+  const [events,         setEvents]         = useState([]);
+  const [showForm,       setShowForm]       = useState(false);
+  const [editingEvent,   setEditingEvent]   = useState(null);
+  const [formData,       setFormData]       = useState(EMPTY_FORM);
+  const [searchQuery,    setSearchQuery]    = useState('');
+  const [typeFilter,     setTypeFilter]     = useState('');
+  const [statusFilter,   setStatusFilter]   = useState('');
+  const [sortOrder,      setSortOrder]      = useState('newest');
+  const [confirmDelete,  setConfirmDelete]  = useState({ show: false, id: null });
+  const [confirmToggle,  setConfirmToggle]  = useState({ show: false, event: null });
+
+  useEffect(() => { fetchEvents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchEvents = async () => {
     try {
       const token = localStorage.getItem('token');
       const res = await axios.get(`${BASE_URL}/api/events/?page_size=${PAGE_SIZE}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      // Handle paginated and non-paginated responses
       setEvents(
-        Array.isArray(res.data.results)
-          ? res.data.results
-          : Array.isArray(res.data)
-          ? res.data
-          : []
+        Array.isArray(res.data.results) ? res.data.results :
+        Array.isArray(res.data)         ? res.data : []
       );
-    } catch (error) {
-      setEvents([]);
-      console.error('Error fetching events:', error);
-    }
+    } catch { setEvents([]); }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  const handleInputChange = e => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const openCreateForm = () => {
-    setEditingEvent(null);
+  const openCreate = () => { setEditingEvent(null); setFormData(EMPTY_FORM); setShowForm(true); };
+
+  const openEdit = (ev) => {
+    setEditingEvent(ev);
     setFormData({
-      title: '',
-      description: '',
-      event_type: 'academic',
-      start_time: '',
-      end_time: '',
-      location: '',
-      organizer: '',
-      max_attendees: ''
+      title:         ev.title,
+      description:   ev.description,
+      event_type:    ev.event_type,
+      start_time:    ev.start_time ? ev.start_time.slice(0, 16) : '',
+      end_time:      ev.end_time   ? ev.end_time.slice(0, 16)   : '',
+      location:      ev.location      || '',
+      organizer:     ev.organizer     || '',
+      max_attendees: ev.max_attendees || '',
     });
     setShowForm(true);
   };
 
-  const handleEdit = (event) => {
-    setEditingEvent(event);
-    setFormData({
-      title: event.title,
-      description: event.description,
-      event_type: event.event_type,
-      start_time: event.start_time ? event.start_time.slice(0, 16) : '',
-      end_time: event.end_time ? event.end_time.slice(0, 16) : '',
-      location: event.location || '',
-      organizer: event.organizer || '',
-      max_attendees: event.max_attendees || ''
-    });
-    setShowForm(true);
-  };
+  const closeForm = () => { setShowForm(false); setEditingEvent(null); setFormData(EMPTY_FORM); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,403 +97,319 @@ const EventManagement = () => {
       ...formData,
       max_attendees: formData.max_attendees === '' ? null : Number(formData.max_attendees),
     };
-
     try {
       if (editingEvent) {
-        await axios.put(
-          `${BASE_URL}/api/events/${editingEvent.id}/`,
-          payload,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`${BASE_URL}/api/events/${editingEvent.id}/`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       } else {
-        await axios.post(
-          `${BASE_URL}/api/events/`,
-          payload,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BASE_URL}/api/events/`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       }
-      setShowForm(false);
-      setEditingEvent(null);
-      setFormData({
-        title: '',
-        description: '',
-        event_type: 'academic',
-        start_time: '',
-        end_time: '',
-        location: '',
-        organizer: '',
-        max_attendees: ''
-      });
+      closeForm();
       fetchEvents();
-    } catch (error) {
-      alert(
-        'Error saving event:\n' +
-          (error?.response?.data?.detail ||
-            JSON.stringify(error?.response?.data) ||
-            error.message)
-      );
-      console.error('Error saving event:', error);
+    } catch (err) {
+      alert('Error saving event:\n' +
+        (err?.response?.data?.detail || JSON.stringify(err?.response?.data) || err.message));
     }
   };
 
-  // Confirm and perform delete
-  const handleDelete = (eventId) => {
-    setConfirmDelete({ show: true, eventId });
-  };
   const confirmDeleteEvent = async () => {
-    const id = confirmDelete.eventId;
-    setConfirmDelete({ show: false, eventId: null });
+    const id = confirmDelete.id;
+    setConfirmDelete({ show: false, id: null });
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`${BASE_URL}/api/events/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.delete(`${BASE_URL}/api/events/${id}/`, { headers: { Authorization: `Bearer ${token}` } });
       fetchEvents();
-    } catch (error) {
-      alert('Error deleting event:\n' + (error?.response?.data?.detail || error.message));
-      console.error('Error deleting event:', error);
+    } catch (err) {
+      alert('Error deleting event:\n' + (err?.response?.data?.detail || err.message));
     }
   };
 
-  // Confirm and perform status toggle
-  const handleToggleStatus = (event) => {
-    setConfirmToggle({ show: true, event });
-  };
-  const confirmToggleEventStatus = async () => {
-    const event = confirmToggle.event;
+  const confirmToggleStatus = async () => {
+    const ev = confirmToggle.event;
     setConfirmToggle({ show: false, event: null });
     const token = localStorage.getItem('token');
     try {
-      await axios.patch(
-        `${BASE_URL}/api/events/${event.id}/`,
-        { is_active: !event.is_active },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await axios.patch(`${BASE_URL}/api/events/${ev.id}/`, { is_active: !ev.is_active }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchEvents();
-    } catch (error) {
-      alert('Error updating event status:\n' + (error?.response?.data?.detail || error.message));
-      console.error('Error updating event status:', error);
+    } catch (err) {
+      alert('Error updating status:\n' + (err?.response?.data?.detail || err.message));
     }
   };
 
-  // Filtering and sorting logic
-  const filteredEvents = events
-    .filter(e => {
-      const matchesSearch =
-        e.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.description?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter ? e.event_type === typeFilter : true;
-      const matchesStatus = statusFilter
-        ? (statusFilter === 'active'
-            ? e.is_active
-            : !e.is_active)
-        : true;
-      return matchesSearch && matchesType && matchesStatus;
-    })
-    .sort((a, b) => {
-      if (sortOrder === 'newest') {
-        return new Date(b.created_at || b.start_time) - new Date(a.created_at || a.start_time);
-      } else {
-        return new Date(a.created_at || a.start_time) - new Date(b.created_at || b.start_time);
-      }
-    });
+  const formatDate = (s) => s ? new Date(s).toLocaleString() : '—';
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
+  const filtered = events
+    .filter(ev => {
+      const q = searchQuery.toLowerCase();
+      return (
+        (!q || ev.title?.toLowerCase().includes(q) || ev.description?.toLowerCase().includes(q)) &&
+        (!typeFilter   || ev.event_type === typeFilter) &&
+        (!statusFilter || (statusFilter === 'active' ? ev.is_active : !ev.is_active))
+      );
+    })
+    .sort((a, b) =>
+      sortOrder === 'newest'
+        ? new Date(b.created_at || b.start_time) - new Date(a.created_at || a.start_time)
+        : new Date(a.created_at || a.start_time) - new Date(b.created_at || b.start_time)
+    );
+
+  const selectCls = `px-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
+    text-white text-sm focus:outline-none focus:border-gold/40 transition-colors`;
 
   return (
-    <div className="am-container">
-      <div className="am-header">
-        <h2>Event Management</h2>
-        <p>Create and manage events for your institution</p>
+    <div className="space-y-6">
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black text-white tracking-tight">Event Management</h1>
+        <p className="text-sm text-navy-400 mt-1">Create and manage events for your institution</p>
       </div>
 
-      <div className="am-toolbar" style={{display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>
-        <div className="am-search" style={{flex: 1, minWidth: 250, position: 'relative'}}>
-          <i className="fas fa-search" style={{
-            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6c757d'
-          }} />
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" aria-hidden="true" />
           <input
             type="text"
-            placeholder="Search events..."
+            placeholder="Search events…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: 40, width: '100%', border: '1px solid #ced4da', borderRadius: 6, fontSize: '0.9rem', height: 41 }}
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
+              text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/40 transition-colors"
           />
         </div>
-        <div className="am-filters" style={{ display: 'flex', gap: 10 }}>
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
-            style={{ padding: 10, border: '1px solid #ced4da', borderRadius: 6, fontSize: '0.9rem', background: 'white', minWidth: 120 }}
-          >
-            {EVENT_TYPES.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: 10, border: '1px solid #ced4da', borderRadius: 6, fontSize: '0.9rem', background: 'white', minWidth: 120 }}
-          >
-            {STATUS_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <select
-            value={sortOrder}
-            onChange={e => setSortOrder(e.target.value)}
-            style={{ padding: 10, border: '1px solid #ced4da', borderRadius: 6, fontSize: '0.9rem', background: 'white', minWidth: 140 }}
-          >
-            {SORT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-        <button className="am-btn am-btn-primary" style={{marginLeft: 10}} onClick={openCreateForm}>
-          <i className="fas fa-plus"></i> Add Event
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={selectCls}>
+          <option value="">All Types</option>
+          <option value="academic">Academic</option>
+          <option value="social">Social</option>
+          <option value="career">Career</option>
+          <option value="workshop">Workshop</option>
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} className={selectCls}>
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-navy-900
+            transition-all hover:-translate-y-0.5"
+          style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
+        >
+          <FiPlus size={15} aria-hidden="true" />
+          Add Event
         </button>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Table */}
+      <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="py-20 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-navy-700/60 flex items-center justify-center mx-auto mb-4">
+              <FiCalendar size={24} className="text-navy-500" aria-hidden="true" />
+            </div>
+            <p className="text-white font-bold mb-1">No events found</p>
+            <p className="text-sm text-navy-500">Try adjusting your filters.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-navy-700/40">
+                  {['Title', 'Type', 'Start', 'End', 'Location', 'Organizer', 'Max', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wide text-navy-500">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-navy-700/30">
+                {filtered.map(ev => (
+                  <tr key={ev.id} className="hover:bg-navy-700/20 transition-colors">
+                    <td className="px-4 py-3.5 font-bold text-white max-w-[160px]">
+                      <p className="truncate">{ev.title}</p>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase ${TYPE_COLOR[ev.event_type] || 'bg-navy-700 text-navy-400'}`}>
+                        {ev.event_type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-navy-400 text-xs whitespace-nowrap">{formatDate(ev.start_time)}</td>
+                    <td className="px-4 py-3.5 text-navy-400 text-xs whitespace-nowrap">{formatDate(ev.end_time)}</td>
+                    <td className="px-4 py-3.5 text-navy-300 text-xs">{ev.location || '—'}</td>
+                    <td className="px-4 py-3.5 text-navy-300 text-xs">{ev.organizer || '—'}</td>
+                    <td className="px-4 py-3.5 text-navy-400 text-xs text-center">{ev.max_attendees || '—'}</td>
+                    <td className="px-4 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase
+                        ${ev.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                        {ev.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => openEdit(ev)} title="Edit"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-sky-500/20 hover:text-sky-400 text-navy-400 transition-colors">
+                          <FiEdit2 size={13} aria-hidden="true" />
+                        </button>
+                        <button onClick={() => setConfirmToggle({ show: true, event: ev })}
+                          title={ev.is_active ? 'Deactivate' : 'Activate'}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-amber-500/20 hover:text-amber-400 text-navy-400 transition-colors">
+                          {ev.is_active
+                            ? <FiEyeOff size={13} aria-hidden="true" />
+                            : <FiEye    size={13} aria-hidden="true" />
+                          }
+                        </button>
+                        <button onClick={() => setConfirmDelete({ show: true, id: ev.id })} title="Delete"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-red-500/20 hover:text-red-400 text-navy-400 transition-colors">
+                          <FiTrash2 size={13} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirm */}
       {confirmDelete.show && (
-        <div className="am-modal-overlay">
-          <div className="am-modal am-confirm-modal">
-            <h3>Confirm Deletion</h3>
-            <p>Are you sure you want to delete this event?</p>
-            <div className="am-modal-actions">
-              <button className="am-btn am-btn-secondary" onClick={() => setConfirmDelete({ show: false, eventId: null })}>
+        <ModalOverlay onClose={() => setConfirmDelete({ show: false, id: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Confirm Deletion</h3>
+            <p className="text-sm text-navy-400 mb-6">Are you sure you want to delete this event?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmDelete({ show: false, id: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                 Cancel
               </button>
-              <button className="am-btn am-btn-danger" onClick={confirmDeleteEvent}>
+              <button onClick={confirmDeleteEvent}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">
                 Delete
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
-      {/* Toggle Status Confirmation Modal */}
+      {/* Toggle Confirm */}
       {confirmToggle.show && (
-        <div className="am-modal-overlay">
-          <div className="am-modal am-confirm-modal">
-            <h3>Change Event Status</h3>
-            <p>
+        <ModalOverlay onClose={() => setConfirmToggle({ show: false, event: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Change Event Status</h3>
+            <p className="text-sm text-navy-400 mb-6">
               Are you sure you want to {confirmToggle.event?.is_active ? 'deactivate' : 'activate'} this event?
             </p>
-            <div className="am-modal-actions">
-              <button className="am-btn am-btn-secondary" onClick={() => setConfirmToggle({ show: false, event: null })}>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmToggle({ show: false, event: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                 Cancel
               </button>
-              <button className="am-btn am-btn-warning" onClick={confirmToggleEventStatus}>
+              <button onClick={confirmToggleStatus}
+                className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-colors
+                  ${confirmToggle.event?.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
                 {confirmToggle.event?.is_active ? 'Deactivate' : 'Activate'}
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
-      {/* Event Form Modal */}
+      {/* Create / Edit Modal */}
       {showForm && (
-        <div className="am-modal-overlay">
-          <div className="am-modal">
-            <div className="am-modal-header">
-              <h3>{editingEvent ? 'Edit Event' : 'Create New Event'}</h3>
-              <button
-                className="am-modal-close"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingEvent(null);
-                  setFormData({
-                    title: '',
-                    description: '',
-                    event_type: 'academic',
-                    start_time: '',
-                    end_time: '',
-                    location: '',
-                    organizer: '',
-                    max_attendees: ''
-                  });
-                }}
-              >
-                <i className="fas fa-times"></i>
+        <ModalOverlay onClose={closeForm}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700/40">
+              <h3 className="text-lg font-black text-white">
+                {editingEvent ? 'Edit Event' : 'Create New Event'}
+              </h3>
+              <button onClick={closeForm}
+                className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-navy-700 text-navy-400 hover:text-white transition-colors">
+                <FiX size={15} aria-hidden="true" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="am-form">
-              <div className="am-form-group">
-                <label>Title</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                />
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <Label>Title</Label>
+                <input type="text" name="title" required className={inputCls} placeholder="Event title"
+                  value={formData.title} onChange={handleInputChange} />
               </div>
-              <div className="am-form-group">
-                <label>Description</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  required
-                />
+
+              <div>
+                <Label>Description</Label>
+                <textarea name="description" rows={4} required className={inputCls + ' resize-none'}
+                  placeholder="Describe the event…"
+                  value={formData.description} onChange={handleInputChange} />
               </div>
-              <div className="am-form-group">
-                <label>Event Type</label>
-                <select
-                  name="event_type"
-                  value={formData.event_type}
-                  onChange={handleInputChange}
-                  required
-                >
+
+              <div>
+                <Label>Event Type</Label>
+                <select name="event_type" required className={inputCls}
+                  value={formData.event_type} onChange={handleInputChange}>
                   <option value="academic">Academic</option>
                   <option value="social">Social</option>
                   <option value="career">Career</option>
                   <option value="workshop">Workshop</option>
                 </select>
               </div>
-              <div className="am-form-row">
-                <div className="am-form-group">
-                  <label>Start Time</label>
-                  <input
-                    type="datetime-local"
-                    name="start_time"
-                    value={formData.start_time}
-                    onChange={handleInputChange}
-                    required
-                  />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Start Time</Label>
+                  <input type="datetime-local" name="start_time" required className={inputCls}
+                    value={formData.start_time} onChange={handleInputChange} />
                 </div>
-                <div className="am-form-group">
-                  <label>End Time</label>
-                  <input
-                    type="datetime-local"
-                    name="end_time"
-                    value={formData.end_time}
-                    onChange={handleInputChange}
-                    required
-                  />
+                <div>
+                  <Label>End Time</Label>
+                  <input type="datetime-local" name="end_time" required className={inputCls}
+                    value={formData.end_time} onChange={handleInputChange} />
                 </div>
               </div>
-              <div className="am-form-group">
-                <label>Location</label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleInputChange}
-                />
+
+              <div>
+                <Label>Location</Label>
+                <input type="text" name="location" className={inputCls} placeholder="Room / venue"
+                  value={formData.location} onChange={handleInputChange} />
               </div>
-              <div className="am-form-group">
-                <label>Organizer</label>
-                <input
-                  type="text"
-                  name="organizer"
-                  value={formData.organizer}
-                  onChange={handleInputChange}
-                />
+
+              <div>
+                <Label>Organizer</Label>
+                <input type="text" name="organizer" className={inputCls} placeholder="Organizer name"
+                  value={formData.organizer} onChange={handleInputChange} />
               </div>
-              <div className="am-form-group">
-                <label>Max Attendees</label>
-                <input
-                  type="number"
-                  name="max_attendees"
-                  value={formData.max_attendees}
-                  onChange={handleInputChange}
-                  min="0"
-                />
+
+              <div>
+                <Label>Max Attendees</Label>
+                <input type="number" name="max_attendees" min="0" className={inputCls} placeholder="Leave blank for unlimited"
+                  value={formData.max_attendees} onChange={handleInputChange} />
               </div>
-              <div className="am-modal-actions">
-                <button type="button" className="am-btn am-btn-secondary" onClick={() => setShowForm(false)}>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeForm}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                   Cancel
                 </button>
-                <button type="submit" className="am-btn am-btn-primary">
+                <button type="submit"
+                  className="px-5 py-2 rounded-xl text-sm font-bold text-navy-900 transition-all hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}>
                   {editingEvent ? 'Update' : 'Create'} Event
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
-
-      <div className="am-table-container">
-        <table className="am-table">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Type</th>
-              <th>Start Time</th>
-              <th>End Time</th>
-              <th>Location</th>
-              <th>Organizer</th>
-              <th>Max</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEvents.length > 0 ? (
-              filteredEvents.map(event => (
-                <tr key={event.id} className="am-table-row">
-                  <td>{event.title}</td>
-                  <td>
-                    <span className={`am-priority am-priority-${event.event_type}`}>
-                      {event.event_type}
-                    </span>
-                  </td>
-                  <td>{formatDate(event.start_time)}</td>
-                  <td>{formatDate(event.end_time)}</td>
-                  <td>{event.location}</td>
-                  <td>{event.organizer}</td>
-                  <td>{event.max_attendees || '-'}</td>
-                  <td>
-                    <span className={`am-status am-status-${event.is_active ? 'active' : 'inactive'}`}>
-                      {event.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="am-actions">
-                      <button 
-                        className="am-action-btn am-edit"
-                        onClick={() => handleEdit(event)}
-                        title="Edit"
-                      >
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button 
-                        className="am-action-btn am-toggle"
-                        title={event.is_active ? 'Deactivate' : 'Activate'}
-                        onClick={() => handleToggleStatus(event)}
-                      >
-                        {event.is_active ? <i className="fas fa-eye-slash"></i> : <i className="fas fa-eye"></i>}
-                      </button>
-                      <button 
-                        className="am-action-btn am-delete"
-                        onClick={() => handleDelete(event.id)}
-                        title="Delete"
-                      >
-                        <i className="fas fa-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="9" className="am-no-data">
-                  <i className="fas fa-calendar"></i>
-                  <p>No events found</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
-};
-
-export default EventManagement;
+}

@@ -20,6 +20,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_verified", True)
+        extra_fields.setdefault("role", "admin")  # superusers are always admin role
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -31,10 +32,10 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
     ROLE_CHOICES = (
-        ("student", "Student"),
-        ("parent", "Parent"),
-        ("staff", "Staff"),
-        ("admin", "Administrator"),
+        ("student",  "Student"),
+        ("parent",   "Parent"),
+        ("lecturer", "Lecturer"),
+        ("admin",    "Administrator"),
     )
 
     username = None  # Remove username field, we'll use email

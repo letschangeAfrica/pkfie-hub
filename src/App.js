@@ -21,24 +21,30 @@ import Login from './pages/admin/Login';
 import ProgramDetail from './pages/main/ProgramDetail';
 import SearchResults from './pages/main/SearchResults';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationsProvider } from './contexts/NotificationsContext';
 import AdminSearchResults from './pages/admin/AdminSearchResults';
 import CampusShowcase from './pages/main/CampusShowcase';
+import Calendar from './pages/main/Calendar';
+import Notifications from './pages/main/Notifications';
+import Settings from './pages/main/Settings';
+import Announcements from './pages/main/Announcements';
 import AdminNotifications from './pages/admin/AdminNotifications';
 import NotFound from './pages/NotFound/NotFound';
 import './App.css';
 
 // ProtectedRoute implementation for role-based protection
-const ProtectedRoute = ({ children, requireAdmin = false }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, requireAdmin = false, allowedRoles }) => {
+  const { isAuthenticated, isAdmin, currentUser, loading } = useAuth();
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0B2559' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid rgba(200,144,42,.3)', borderTopColor: '#C8902A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#001F5B' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid rgba(255,215,0,.3)', borderTopColor: '#FFD700', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   if (requireAdmin && !isAdmin) return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(currentUser?.role)) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -47,8 +53,8 @@ const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0B2559' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid rgba(200,144,42,.3)', borderTopColor: '#C8902A', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#001F5B' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid rgba(255,215,0,.3)', borderTopColor: '#FFD700', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -78,6 +84,7 @@ function App() {
 
   return (
     <AuthProvider>
+      <NotificationsProvider>
       <Router>
         <Routes>
           {/* Main App Protected Routes */}
@@ -106,7 +113,7 @@ function App() {
           } />
 
           <Route path="/pathfinder" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['student']}>
               <Layout theme={theme} setTheme={setTheme}>
                 <Pathfinder />
               </Layout>
@@ -114,7 +121,7 @@ function App() {
           } />
 
           <Route path="/innovation" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['student']}>
               <Layout theme={theme} setTheme={setTheme}>
                 <Innovation />
               </Layout>
@@ -151,6 +158,38 @@ function App() {
             <ProtectedRoute>
               <Layout theme={theme} setTheme={setTheme}>
                 <SearchResults />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/calendar" element={
+            <ProtectedRoute>
+              <Layout theme={theme} setTheme={setTheme}>
+                <Calendar />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/notifications" element={
+            <ProtectedRoute>
+              <Layout theme={theme} setTheme={setTheme}>
+                <Notifications />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/announcements" element={
+            <ProtectedRoute>
+              <Layout theme={theme} setTheme={setTheme}>
+                <Announcements />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Layout theme={theme} setTheme={setTheme}>
+                <Settings theme={theme} setTheme={setTheme} />
               </Layout>
             </ProtectedRoute>
           } />
@@ -194,6 +233,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
+      </NotificationsProvider>
     </AuthProvider>
   );
 }

@@ -1,293 +1,294 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
-import './AdminNotifications.css';
+import {
+  FiRefreshCw, FiSearch, FiX, FiCheckCircle,
+  FiBell, FiChevronLeft, FiChevronRight, FiExternalLink,
+} from 'react-icons/fi';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
-/**
- * AdminNotifications
- * - Single page that handles listing, filtering, searching, paging and viewing notification details inline.
- * - Clicking "View" opens a right-side detail drawer (no navigation away from the page).
- * - Supports mark read/unread, bulk "Mark all read", and refreshing the list.
- * - Defensive: works with paginated or non-paginated responses (res.data.results || res.data).
- */
+const TYPE_COLOR = {
+  info:    'bg-sky-500/20 text-sky-400 border-sky-500/30',
+  warning: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  error:   'bg-red-500/20 text-red-400 border-red-500/30',
+  success: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+};
+const typeColor = (t) => TYPE_COLOR[(t || '').toLowerCase()] || TYPE_COLOR.info;
 
-const AdminNotifications = () => {
-  const { currentUser } = useAuth();
+const Sk = ({ className = '' }) => (
+  <div className={`bg-navy-700/60 rounded-xl animate-pulse ${className}`} />
+);
 
+const fmt = (iso) => iso ? new Date(iso).toLocaleString() : '';
+
+export default function AdminNotifications() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [onlyUnread, setOnlyUnread] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
-  const [error, setError] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [selected, setSelected] = useState(null);
+  const [loading,       setLoading]       = useState(false);
+  const [onlyUnread,    setOnlyUnread]    = useState(false);
+  const [page,          setPage]          = useState(1);
+  const [error,         setError]         = useState('');
+  const [search,        setSearch]        = useState('');
+  const [detailOpen,    setDetailOpen]    = useState(false);
+  const [selected,      setSelected]      = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkLoading,   setBulkLoading]   = useState(false);
 
-  const mountedRef = useRef(true);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+  const authHeader = () => {
+    const t = localStorage.getItem('token');
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  };
 
   const fetchNotifications = async () => {
     setLoading(true);
     setError('');
     try {
-      const token = localStorage.getItem('token');
       const res = await axios.get(`${BASE_URL}/api/notifications/`, {
-        headers: { Authorization: token ? `Bearer ${token}` : undefined },
-        params: { ordering: '-created_at', page, page_size: pageSize, unread: onlyUnread ? true : undefined },
+        headers: authHeader(),
+        params: { ordering: '-created_at', page, page_size: 20, unread: onlyUnread || undefined },
       });
-      const list = res.data.results || res.data || [];
-      if (mountedRef.current) setNotifications(list);
-    } catch (err) {
-      console.error('Failed to load notifications', err);
-      if (mountedRef.current) {
-        setError('Failed to load notifications. Verify the /api/notifications/ endpoint.');
-        setNotifications([]);
-      }
+      if (mounted.current) setNotifications(res.data.results ?? res.data ?? []);
+    } catch {
+      if (mounted.current) { setError('Failed to load notifications.'); setNotifications([]); }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlyUnread, page]);
+  useEffect(() => { fetchNotifications(); }, [onlyUnread, page]); // eslint-disable-line
 
-  // Derived counts
-  const totalCount = notifications.length;
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Client-side filtered list for search (keeps server paging intact)
   const filtered = useMemo(() => {
-    const q = (searchQuery || '').trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     if (!q) return notifications;
-    return notifications.filter(n => {
-      const title = (n.title || '').toLowerCase();
-      const text = (n.text || '').toLowerCase();
-      const type = (n.notif_type || '').toLowerCase();
-      return title.includes(q) || text.includes(q) || type.includes(q);
-    });
-  }, [notifications, searchQuery]);
+    return notifications.filter(n =>
+      (n.title || '').toLowerCase().includes(q) ||
+      (n.text  || '').toLowerCase().includes(q) ||
+      (n.notif_type || '').toLowerCase().includes(q)
+    );
+  }, [notifications, search]);
 
-  // Open detail drawer and fetch full notification if necessary
-  const openDetail = async (id) => {
-    setDetailLoading(true);
-    setDetailOpen(true);
-    setSelected(null);
-    try {
-      const token = localStorage.getItem('token');
-      // Try to GET detail (if your API exposes it). If not, fall back to the list item.
-      const res = await axios.get(`${BASE_URL}/api/notifications/${id}/`, {
-        headers: { Authorization: token ? `Bearer ${token}` : undefined },
-      });
-      if (!mountedRef.current) return;
-      setSelected(res.data);
-    } catch (err) {
-      console.warn('Notification detail fetch failed -- using list item fallback', err);
-      // fallback
-      const fallback = notifications.find(n => n.id === id);
-      if (fallback) setSelected(fallback);
-    } finally {
-      if (!mountedRef.current) return;
-      setDetailLoading(false);
-      // optimistically mark read if needed
-      const item = notifications.find(n => n.id === id);
-      if (item && !item.read) markReadLocal(id);
-      // also request the server to mark read
-      markAsRead(id);
-    }
-  };
+  const markReadLocal   = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: true  } : n));
+  const markUnreadLocal = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: false } : n));
 
-  // Close the detail drawer
-  const closeDetail = () => {
-    setDetailOpen(false);
-    setSelected(null);
-  };
-
-  // Helper: optimistic local update for read
-  const markReadLocal = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-  const markUnreadLocal = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
-  };
-
-  const markAsRead = async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: true }, {
-        headers: { Authorization: token ? `Bearer ${token}` : undefined },
-      });
-      // already optimistic updated
-    } catch (err) {
-      console.warn('markAsRead failed', err);
-    }
-  };
-
+  const markAsRead   = (id) => axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: true  }, { headers: authHeader() }).catch(() => {});
   const markAsUnread = async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: false }, {
-        headers: { Authorization: token ? `Bearer ${token}` : undefined },
-      });
-      markUnreadLocal(id);
-      if (selected?.id === id) setSelected(prev => prev ? { ...prev, read: false } : prev);
-    } catch (err) {
-      console.warn('markAsUnread failed', err);
-    }
+    await axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: false }, { headers: authHeader() }).catch(() => {});
+    markUnreadLocal(id);
+    if (selected?.id === id) setSelected(p => p ? { ...p, read: false } : p);
   };
 
   const markAllRead = async () => {
     setBulkLoading(true);
     try {
-      // If your API has a bulk endpoint, call it. Otherwise, patch each one.
-      const token = localStorage.getItem('token');
-      // Try bulk endpoint first
       try {
-        await axios.post(`${BASE_URL}/api/notifications/mark_all_read/`, {}, {
-          headers: { Authorization: token ? `Bearer ${token}` : undefined },
-        });
-        // refetch
+        await axios.post(`${BASE_URL}/api/notifications/mark_all_read/`, {}, { headers: authHeader() });
         await fetchNotifications();
-      } catch (e) {
-        // fallback: iterate
+      } catch {
         const unread = notifications.filter(n => !n.read);
-        await Promise.all(unread.map(n => axios.patch(`${BASE_URL}/api/notifications/${n.id}/`, { read: true }, {
-          headers: { Authorization: token ? `Bearer ${token}` : undefined },
-        }).catch(()=>{})));
-        // optimistic update
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        await Promise.all(unread.map(n => axios.patch(`${BASE_URL}/api/notifications/${n.id}/`, { read: true }, { headers: authHeader() }).catch(() => {})));
+        setNotifications(p => p.map(n => ({ ...n, read: true })));
       }
-    } catch (err) {
-      console.warn('markAllRead failed', err);
+    } finally { setBulkLoading(false); }
+  };
+
+  const openDetail = async (id) => {
+    setDetailLoading(true); setDetailOpen(true); setSelected(null);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/notifications/${id}/`, { headers: authHeader() });
+      if (mounted.current) setSelected(res.data);
+    } catch {
+      const fallback = notifications.find(n => n.id === id);
+      if (fallback) setSelected(fallback);
     } finally {
-      setBulkLoading(false);
+      if (!mounted.current) return;
+      setDetailLoading(false);
+      const item = notifications.find(n => n.id === id);
+      if (item && !item.read) { markReadLocal(id); markAsRead(id); }
     }
   };
 
-  // UI handlers
-  const handleRefresh = () => {
-    setPage(1);
-    fetchNotifications();
-  };
-
-  // Small UI helpers
-  const formatDate = (iso) => iso ? new Date(iso).toLocaleString() : '';
+  const closeDetail = () => { setDetailOpen(false); setSelected(null); };
 
   return (
-    <div className="am-container modern">
-      <div className="am-header">
-        <div>
-          <h2>Notifications</h2>
-          <p className="am-sub">System and user notifications relevant to your account</p>
-        </div>
+    <div className="flex gap-0 h-full overflow-hidden relative">
 
-        <div className="am-header-actions">
-          <div className="am-stat">
-            <div className="am-stat-number">{notifications.length}</div>
-            <div className="am-stat-label">Shown</div>
+      {/* ── Main panel ─────────────────────────────── */}
+      <div className={`flex-1 flex flex-col min-w-0 space-y-5 overflow-y-auto transition-all ${detailOpen ? 'pr-0 lg:pr-[400px]' : ''}`}>
+
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-white">Notifications</h1>
+            <p className="text-sm text-navy-400 mt-0.5">System and user notifications</p>
           </div>
-          <div className="am-stat">
-            <div className="am-stat-number">{unreadCount}</div>
-            <div className="am-stat-label">Unread</div>
-          </div>
-          <button className="am-btn am-btn-ghost" onClick={handleRefresh} aria-label="Refresh notifications">
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      <div className="am-toolbar modern-toolbar">
-        <div className="toolbar-left">
-          <button
-            className={`am-btn ${onlyUnread ? 'am-btn-primary' : 'am-btn-secondary'}`}
-            onClick={() => { setOnlyUnread(v => !v); setPage(1); }}
-          >
-            {onlyUnread ? 'Showing unread' : 'Show unread'}
-          </button>
-
-          <button
-            className="am-btn"
-            onClick={() => markAllRead()}
-            disabled={bulkLoading || unreadCount === 0}
-            title="Mark all visible notifications as read"
-          >
-            {bulkLoading ? 'Marking…' : 'Mark all read'}
-          </button>
-        </div>
-
-        <div className="toolbar-right">
-          <div className="search-wrap">
-            <input
-              type="search"
-              placeholder="Search notifications..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search notifications"
-            />
-            {searchQuery && <button className="clear-search" onClick={() => setSearchQuery('')} aria-label="Clear search">✕</button>}
-          </div>
-
-          <div className="pagination-controls">
-            <button className="am-btn" onClick={() => setPage(p => Math.max(1, p - 1))}>Prev</button>
-            <div className="page-indicator">Page {page}</div>
-            <button className="am-btn" onClick={() => setPage(p => p + 1)}>Next</button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-navy-400">
+                <strong className="text-white font-black">{notifications.length}</strong> shown
+              </span>
+              <span className="text-navy-400">
+                <strong className="text-amber-400 font-black">{unreadCount}</strong> unread
+              </span>
+            </div>
+            <button
+              onClick={() => { setPage(1); fetchNotifications(); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold
+                text-navy-300 bg-navy-800 border border-navy-700/40
+                hover:text-white hover:border-navy-600/60 transition-all"
+            >
+              <FiRefreshCw size={13} aria-hidden="true" />
+              Refresh
+            </button>
           </div>
         </div>
-      </div>
 
-      <div className="am-table-container modern-list" style={{ marginTop: 12 }}>
-        {error && <div className="am-error">{error}</div>}
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setOnlyUnread(v => !v); setPage(1); }}
+              className={[
+                'px-4 py-2 rounded-xl text-xs font-black transition-all',
+                onlyUnread
+                  ? 'text-navy-900'
+                  : 'text-navy-300 bg-navy-800 border border-navy-700/40 hover:border-navy-600/60',
+              ].join(' ')}
+              style={onlyUnread ? { background: 'linear-gradient(135deg,#FFD700,#FFEE55)' } : undefined}
+            >
+              {onlyUnread ? 'Unread only' : 'All notifications'}
+            </button>
+            <button
+              onClick={markAllRead}
+              disabled={bulkLoading || unreadCount === 0}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-navy-300 bg-navy-800
+                border border-navy-700/40 hover:text-white hover:border-navy-600/60 transition-all
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {bulkLoading ? 'Marking…' : 'Mark all read'}
+            </button>
+          </div>
 
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-500 pointer-events-none" aria-hidden="true" />
+              <input
+                type="search"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search notifications…"
+                className="pl-8 pr-8 py-2 w-52 bg-navy-800 border border-navy-700/50 rounded-xl
+                  text-sm text-white placeholder-navy-500
+                  focus:outline-none focus:border-gold/50 transition-all"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-navy-500 hover:text-white transition-colors">
+                  <FiX size={13} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="p-2 rounded-lg text-navy-400 hover:text-white bg-navy-800 border border-navy-700/40
+                  disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+                <FiChevronLeft size={14} aria-hidden="true" />
+              </button>
+              <span className="text-xs font-bold text-navy-400 px-2">p.{page}</span>
+              <button onClick={() => setPage(p => p + 1)}
+                className="p-2 rounded-lg text-navy-400 hover:text-white bg-navy-800 border border-navy-700/40 transition-all">
+                <FiChevronRight size={14} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="px-4 py-3 rounded-xl bg-red-900/20 border border-red-500/30 text-sm text-red-400 font-semibold">
+            {error}
+          </div>
+        )}
+
+        {/* Notification list */}
         {loading ? (
-          <div className="skeleton-grid">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="skeleton-card">
-                <div className="skeleton-line short" />
-                <div className="skeleton-line" />
-                <div className="skeleton-line long" />
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-navy-800/60 rounded-2xl p-5 border border-navy-700/40 space-y-2">
+                <Sk className="h-4 w-1/2" />
+                <Sk className="h-3 w-full" />
+                <Sk className="h-3 w-3/4" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="am-no-data">No notifications found.</div>
+          <div className="text-center py-20">
+            <div className="w-14 h-14 rounded-2xl bg-navy-800 flex items-center justify-center mx-auto mb-4">
+              <FiBell size={22} className="text-navy-600" aria-hidden="true" />
+            </div>
+            <p className="text-sm text-navy-400">No notifications found.</p>
+          </div>
         ) : (
-          <div className="notification-grid">
+          <div className="space-y-3">
             {filtered.map(n => (
-              <article key={n.id} className={`notification-card ${n.read ? 'read' : 'unread'}`} aria-live="polite">
-                <div className="notification-left">
-                  <div className="notification-type">{(n.notif_type || 'info').toUpperCase()}</div>
+              <article
+                key={n.id}
+                className={[
+                  'relative flex items-start gap-4 px-5 py-4 rounded-2xl border transition-all',
+                  n.read
+                    ? 'bg-navy-800/40 border-navy-700/30 opacity-70'
+                    : 'bg-navy-800/80 border-navy-700/50',
+                  selected?.id === n.id && 'border-gold/40',
+                ].join(' ')}
+              >
+                {!n.read && (
+                  <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-gold" aria-label="Unread" />
+                )}
+                <div>
+                  <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-black uppercase border ${typeColor(n.notif_type)}`}>
+                    {n.notif_type || 'info'}
+                  </span>
                 </div>
-
-                <div className="notification-body-area">
-                  <div className="notification-row-top">
-                    <h3 className="notification-title">{n.title || (n.text ? n.text.slice(0, 80) : 'Notification')}</h3>
-                    <div className="notification-meta">{formatDate(n.created_at)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <h3 className="text-sm font-bold text-white leading-snug">
+                      {n.title || n.text?.slice(0, 80) || 'Notification'}
+                    </h3>
+                    <span className="flex-shrink-0 text-[11px] text-navy-500">{fmt(n.created_at)}</span>
                   </div>
-
-                  <p className="notification-excerpt">{n.text ? n.text.slice(0, 220) : <em>No details</em>}</p>
-
-                  <div className="notification-actions">
-                    <button className="am-btn am-btn-link" onClick={() => openDetail(n.id)}>View</button>
+                  <p className="text-xs text-navy-400 leading-relaxed mb-3 line-clamp-2">
+                    {n.text?.slice(0, 180) || <em>No details</em>}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => openDetail(n.id)}
+                      className="text-xs font-bold text-gold hover:underline transition-colors">
+                      View
+                    </button>
                     {n.link && (
-                      <button className="am-btn" onClick={() => {
-                        if (n.link.startsWith('http')) window.open(n.link, '_blank');
-                        else window.location.href = n.link;
-                      }}>Open link</button>
+                      <button
+                        onClick={() => n.link.startsWith('http') ? window.open(n.link, '_blank') : (window.location.href = n.link)}
+                        className="text-xs font-bold text-sky-400 hover:underline transition-colors flex items-center gap-1"
+                      >
+                        <FiExternalLink size={11} aria-hidden="true" />
+                        Open link
+                      </button>
                     )}
                     {!n.read ? (
-                      <button className="am-btn am-btn-secondary" onClick={() => { markReadLocal(n.id); markAsRead(n.id); }}>Mark read</button>
+                      <button onClick={() => { markReadLocal(n.id); markAsRead(n.id); }}
+                        className="text-xs font-bold text-navy-400 hover:text-white transition-colors">
+                        Mark read
+                      </button>
                     ) : (
-                      <button className="am-btn" onClick={() => markAsUnread(n.id)}>Mark unread</button>
+                      <button onClick={() => markAsUnread(n.id)}
+                        className="text-xs font-bold text-navy-400 hover:text-white transition-colors">
+                        Mark unread
+                      </button>
                     )}
                   </div>
                 </div>
@@ -297,54 +298,113 @@ const AdminNotifications = () => {
         )}
       </div>
 
-      {/* Inline right-side detail drawer */}
-      <aside className={`notification-drawer ${detailOpen ? 'open' : ''}`} role="dialog" aria-label="Notification details">
-        <div className="drawer-header">
-          <div className="drawer-actions">
-            <button className="am-btn" onClick={closeDetail}>Close</button>
-          </div>
+      {/* ── Detail drawer ── */}
+      {detailOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 lg:hidden"
+          onClick={closeDetail}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={[
+          'fixed top-0 right-0 z-30 h-full w-[400px] max-w-full',
+          'bg-navy-900 border-l border-navy-700/40 shadow-2xl',
+          'flex flex-col transition-transform duration-300',
+          detailOpen ? 'translate-x-0' : 'translate-x-full',
+        ].join(' ')}
+        role="dialog"
+        aria-label="Notification details"
+        aria-hidden={!detailOpen}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-navy-700/40 flex-shrink-0">
+          <h2 className="text-sm font-black text-white">Notification Detail</h2>
+          <button onClick={closeDetail} aria-label="Close detail panel"
+            className="p-1.5 rounded-lg text-navy-400 hover:text-white hover:bg-navy-700 transition-colors">
+            <FiX size={16} aria-hidden="true" />
+          </button>
         </div>
 
-        <div className="drawer-content">
+        <div className="flex-1 overflow-y-auto p-5">
           {detailLoading ? (
-            <div className="drawer-loading">Loading…</div>
+            <div className="space-y-4 pt-2">
+              <Sk className="h-6 w-3/4" />
+              <Sk className="h-4 w-full" />
+              <Sk className="h-4 w-5/6" />
+              <Sk className="h-24 w-full" />
+            </div>
           ) : !selected ? (
-            <div className="drawer-empty">Select a notification to view details.</div>
+            <div className="text-center py-16 text-navy-500 text-sm">
+              Select a notification to view details.
+            </div>
           ) : (
-            <div className="drawer-body">
-              <div className="drawer-title-row">
-                <h3 className="drawer-title">{selected.title || selected.text || 'Notification'}</h3>
-                <div className="drawer-meta">{formatDate(selected.created_at)}</div>
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-base font-black text-white leading-snug mb-1">
+                  {selected.title || selected.text || 'Notification'}
+                </h3>
+                <p className="text-xs text-navy-500">{fmt(selected.created_at)}</p>
               </div>
 
-              <div className="drawer-type">Type: <strong>{(selected.notif_type || 'info').toUpperCase()}</strong></div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase border ${typeColor(selected.notif_type)}`}>
+                  {selected.notif_type || 'info'}
+                </span>
+                {!selected.read && (
+                  <span className="px-2.5 py-1 rounded-lg text-[11px] font-black bg-gold/20 text-gold border border-gold/30">
+                    Unread
+                  </span>
+                )}
+              </div>
 
-              <div className="drawer-text" dangerouslySetInnerHTML={{ __html: (selected.body || selected.text || '').replace(/\n/g, '<br/>') }} />
+              <div
+                className="text-sm text-navy-200 leading-relaxed bg-navy-800/50 rounded-xl p-4 border border-navy-700/40"
+                dangerouslySetInnerHTML={{ __html: (selected.body || selected.text || '').replace(/\n/g, '<br/>') }}
+              />
 
               {selected.link && (
-                <div className="drawer-link">
-                  <a href={selected.link} target="_blank" rel="noreferrer">Open related link</a>
-                </div>
+                <a
+                  href={selected.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 text-sm font-bold text-gold hover:underline"
+                >
+                  <FiExternalLink size={13} aria-hidden="true" />
+                  Open related link
+                </a>
               )}
 
-              <div className="drawer-cta">
+              <div className="flex gap-2 pt-2">
                 {!selected.read ? (
-                  <button className="am-btn am-btn-primary" onClick={() => { markReadLocal(selected.id); markAsRead(selected.id); setSelected(prev => prev ? { ...prev, read: true } : prev); }}>Mark read</button>
+                  <button
+                    onClick={() => { markReadLocal(selected.id); markAsRead(selected.id); setSelected(p => p ? { ...p, read: true } : p); }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-navy-900 transition-all hover:-translate-y-px"
+                    style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55)' }}
+                  >
+                    <FiCheckCircle size={13} aria-hidden="true" />
+                    Mark read
+                  </button>
                 ) : (
-                  <button className="am-btn" onClick={() => { markAsUnread(selected.id); setSelected(prev => prev ? { ...prev, read: false } : prev); }}>Mark unread</button>
+                  <button
+                    onClick={() => markAsUnread(selected.id)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-navy-300 bg-navy-800 border border-navy-700/40 hover:text-white hover:border-navy-600/60 transition-all"
+                  >
+                    Mark unread
+                  </button>
                 )}
-
-                <button className="am-btn am-btn-ghost" onClick={() => { navigator.clipboard?.writeText(selected.link || '') }}>Copy link</button>
+                {selected.link && (
+                  <button
+                    onClick={() => navigator.clipboard?.writeText(selected.link)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-navy-400 bg-navy-800 border border-navy-700/40 hover:text-white transition-all"
+                  >
+                    Copy link
+                  </button>
+                )}
               </div>
             </div>
           )}
         </div>
       </aside>
-
-      {/* Drawer overlay */}
-      <div className={`drawer-overlay ${detailOpen ? 'visible' : ''}`} onClick={closeDetail} aria-hidden={!detailOpen} />
     </div>
   );
-};
-
-export default AdminNotifications;
+}

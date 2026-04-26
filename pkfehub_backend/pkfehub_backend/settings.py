@@ -42,9 +42,10 @@ INSTALLED_APPS = [
     "handbook",
     "innovation",
     "events",
-    "notifications",  # <-- Add the notifications app here
+    "notifications",
     "gallery",
     "system",
+    "calendar_app",
 ]
 
 MIDDLEWARE = [

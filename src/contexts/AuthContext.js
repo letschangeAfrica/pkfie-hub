@@ -59,12 +59,11 @@ export const AuthProvider = ({ children }) => {
     return response;
   };
 
-  // Utility: wait until finished loading and check for admin
   const isAuthenticated = !!currentUser;
-  const isAdmin = currentUser?.role === 'admin';
-  const isStaff = currentUser?.role === 'staff';
-  const isStudent = currentUser?.role === 'student';
-  const isParent = currentUser?.role === 'parent';
+  const isAdmin    = currentUser?.role === 'admin' || currentUser?.is_staff === true || currentUser?.is_superuser === true;
+  const isLecturer = currentUser?.role === 'lecturer';
+  const isParent   = currentUser?.role === 'parent';
+  const isStudent  = currentUser?.role === 'student';
 
   const value = {
     currentUser,
@@ -74,7 +73,7 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     isAuthenticated,
     isAdmin,
-    isStaff,
+    isLecturer,
     isStudent,
     isParent,
     loading,

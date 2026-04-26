@@ -1,56 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import './UserManagement.css';
+import {
+  FiUsers, FiSearch, FiPlus, FiEdit2, FiTrash2,
+  FiX, FiCheck, FiSlash,
+} from 'react-icons/fi';
 
-const UserManagement = () => {
-  const [users, setUsers] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    role: 'student',
-    student_id: '',
-    phone_number: '',
-    is_active: true,
-    password: '',
-    password2: ''
-  });
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
-  // For confirmation dialogs
+const ROLE_COLOR = {
+  admin:    'bg-gold/20 text-gold',
+  student:  'bg-sky-500/20 text-sky-400',
+  lecturer: 'bg-violet-500/20 text-violet-400',
+  parent:   'bg-emerald-500/20 text-emerald-400',
+  staff:    'bg-orange-500/20 text-orange-400',
+};
+
+const EMPTY_FORM = {
+  first_name: '', last_name: '', email: '',
+  role: 'student', student_id: '', phone_number: '',
+  is_active: true, password: '', password2: '',
+};
+
+function ModalOverlay({ children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Label({ children }) {
+  return (
+    <label className="block text-xs font-bold text-navy-400 mb-1.5 uppercase tracking-wide">
+      {children}
+    </label>
+  );
+}
+
+function Field({ className = '', ...props }) {
+  return (
+    <input
+      {...props}
+      className={`w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+        text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/50
+        disabled:opacity-40 transition-colors ${className}`}
+    />
+  );
+}
+
+function SelectField({ children, ...props }) {
+  return (
+    <select
+      {...props}
+      className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+        text-white text-sm focus:outline-none focus:border-gold/50 transition-colors"
+    >
+      {children}
+    </select>
+  );
+}
+
+export default function UserManagement() {
+  const [users,         setUsers]         = useState([]);
+  const [showForm,      setShowForm]      = useState(false);
+  const [editingUser,   setEditingUser]   = useState(null);
+  const [searchTerm,    setSearchTerm]    = useState('');
+  const [roleFilter,    setRoleFilter]    = useState('all');
+  const [statusFilter,  setStatusFilter]  = useState('all');
+  const [formData,      setFormData]      = useState(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, userId: null });
   const [confirmToggle, setConfirmToggle] = useState({ show: false, userId: null });
 
-  const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = async () => {
     const token = localStorage.getItem('token');
     try {
       const res = await axios.get(`${BASE_URL}/api/users/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data);
-    } catch (err) {
-      setUsers([]);
-      console.error('Error fetching users:', err);
-    }
+    } catch { setUsers([]); }
   };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingUser(null);
+    setFormData(EMPTY_FORM);
   };
 
   const handleSubmit = async (e) => {
@@ -58,415 +102,393 @@ const UserManagement = () => {
     const token = localStorage.getItem('token');
     try {
       if (editingUser) {
-        // Update existing user (don't send password fields)
         const { password, password2, ...updateData } = formData;
-        await axios.put(
-          `${BASE_URL}/api/users/${editingUser.id}/`,
-          updateData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`${BASE_URL}/api/users/${editingUser.id}/`, updateData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       } else {
-        // Create new user
-        await axios.post(
-          `${BASE_URL}/api/users/`,
-          formData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.post(`${BASE_URL}/api/users/`, formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       }
-      // Refresh users list
       await fetchUsers();
-      setShowForm(false);
-      setEditingUser(null);
-      setFormData({
-        first_name: '',
-        last_name: '',
-        email: '',
-        role: 'student',
-        student_id: '',
-        phone_number: '',
-        is_active: true,
-        password: '',
-        password2: ''
-      });
+      closeForm();
     } catch (err) {
       alert(JSON.stringify(err.response?.data));
-      console.error(err.response?.data || err);
     }
   };
 
   const handleEdit = (user) => {
     setEditingUser(user);
     setFormData({
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      role: user.role,
-      student_id: user.student_id,
-      phone_number: user.phone_number,
-      is_active: user.is_active,
-      password: '',
-      password2: ''
+      first_name: user.first_name, last_name: user.last_name,
+      email: user.email, role: user.role,
+      student_id: user.student_id, phone_number: user.phone_number,
+      is_active: user.is_active, password: '', password2: '',
     });
     setShowForm(true);
   };
 
-  // Show confirmation modal for status toggle
-  const handleToggleStatus = (id) => {
-    setConfirmToggle({ show: true, userId: id });
-  };
-
-  // Confirm and perform status toggle
   const confirmToggleUserStatus = async () => {
     const id = confirmToggle.userId;
     setConfirmToggle({ show: false, userId: null });
     const token = localStorage.getItem('token');
     const user = users.find(u => u.id === id);
     if (!user) return;
-    await axios.patch(
-      `${BASE_URL}/api/users/${id}/`,
-      { is_active: !user.is_active },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    await axios.patch(`${BASE_URL}/api/users/${id}/`, { is_active: !user.is_active }, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     await fetchUsers();
   };
 
-  // Show confirmation modal for delete
-  const handleDelete = (id) => {
-    setConfirmDelete({ show: true, userId: id });
-  };
-
-  // Confirm and perform delete
   const confirmDeleteUser = async () => {
     const id = confirmDelete.userId;
     setConfirmDelete({ show: false, userId: null });
     const token = localStorage.getItem('token');
     await axios.delete(`${BASE_URL}/api/users/${id}/`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
-    setUsers(users.filter(user => user.id !== id));
+    setUsers(prev => prev.filter(u => u.id !== id));
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
+  const formatDate = (s) => s ? new Date(s).toLocaleDateString() : 'Never';
 
-  // Filter users based on search term, role, and status
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'active' && user.is_active) ||
+    const q = searchTerm.toLowerCase();
+    const matchSearch =
+      user.first_name?.toLowerCase().includes(q) ||
+      user.last_name?.toLowerCase().includes(q)  ||
+      user.email?.toLowerCase().includes(q);
+    const matchRole   = roleFilter   === 'all' || user.role === roleFilter;
+    const matchStatus = statusFilter === 'all' ||
+      (statusFilter === 'active'   &&  user.is_active) ||
       (statusFilter === 'inactive' && !user.is_active);
-
-    return matchesSearch && matchesRole && matchesStatus;
+    return matchSearch && matchRole && matchStatus;
   });
 
+  const toggleUser = users.find(u => u.id === confirmToggle.userId);
+
   return (
-    <div className="um-container">
-      <div className="um-header">
-        <h2>User Management</h2>
-        <p>Manage user accounts and permissions</p>
+    <div className="space-y-6">
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black text-white tracking-tight">User Management</h1>
+        <p className="text-sm text-navy-400 mt-1">Manage user accounts and permissions</p>
       </div>
 
-      <div className="um-toolbar">
-        <div className="um-search">
-          <i className="fas fa-search"></i>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-500" aria-hidden="true" />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users…"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
+              text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/40 transition-colors"
           />
         </div>
 
-        <div className="um-filters">
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-            <option value="all">All Roles</option>
-            <option value="student">Student</option>
-            <option value="parent">Parent</option>
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
-          </select>
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          className="px-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
+            text-white text-sm focus:outline-none focus:border-gold/40 transition-colors"
+        >
+          <option value="all">All Roles</option>
+          <option value="student">Student</option>
+          <option value="parent">Parent</option>
+          <option value="lecturer">Lecturer</option>
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+        </select>
 
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="px-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
+            text-white text-sm focus:outline-none focus:border-gold/40 transition-colors"
+        >
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
 
         <button
-          className="um-btn um-btn-primary"
           onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-navy-900
+            transition-all hover:-translate-y-0.5"
+          style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
         >
-          <i className="fas fa-plus"></i> Add User
+          <FiPlus size={15} aria-hidden="true" />
+          Add User
         </button>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Table */}
+      <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
+        {filteredUsers.length === 0 ? (
+          <div className="py-20 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-navy-700/60 flex items-center justify-center mx-auto mb-4">
+              <FiUsers size={24} className="text-navy-500" aria-hidden="true" />
+            </div>
+            <p className="text-white font-bold mb-1">No users found</p>
+            <p className="text-sm text-navy-500">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-navy-700/40">
+                  {['Name', 'Email', 'Role', 'Student ID', 'Status', 'Created', 'Last Login', 'Actions'].map(h => (
+                    <th key={h} className="px-5 py-3.5 text-left text-[11px] font-black uppercase tracking-wide text-navy-500">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-navy-700/30">
+                {filteredUsers.map(user => (
+                  <tr key={user.id} className="hover:bg-navy-700/20 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-navy-700/60 flex items-center justify-center
+                          text-xs font-black text-gold flex-shrink-0">
+                          {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-white">{user.first_name} {user.last_name}</p>
+                          <p className="text-xs text-navy-500">{user.phone_number || '—'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-navy-300">{user.email}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase ${ROLE_COLOR[user.role] || 'bg-navy-700 text-navy-300'}`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-navy-400">{user.student_id || '—'}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase
+                        ${user.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {user.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-navy-400 text-xs">{formatDate(user.created_at)}</td>
+                    <td className="px-5 py-3.5 text-navy-400 text-xs">{formatDate(user.last_login)}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleEdit(user)}
+                          title="Edit"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center
+                            bg-navy-700/60 hover:bg-sky-500/20 hover:text-sky-400
+                            text-navy-400 transition-colors"
+                        >
+                          <FiEdit2 size={13} aria-hidden="true" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmToggle({ show: true, userId: user.id })}
+                          title={user.is_active ? 'Deactivate' : 'Activate'}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                            ${user.is_active
+                              ? 'bg-navy-700/60 hover:bg-amber-500/20 hover:text-amber-400 text-navy-400'
+                              : 'bg-navy-700/60 hover:bg-emerald-500/20 hover:text-emerald-400 text-navy-400'
+                            }`}
+                        >
+                          {user.is_active
+                            ? <FiSlash size={13} aria-hidden="true" />
+                            : <FiCheck size={13} aria-hidden="true" />
+                          }
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete({ show: true, userId: user.id })}
+                          title="Delete"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center
+                            bg-navy-700/60 hover:bg-red-500/20 hover:text-red-400
+                            text-navy-400 transition-colors"
+                        >
+                          <FiTrash2 size={13} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirm Modal */}
       {confirmDelete.show && (
-        <div className="um-modal-overlay">
-          <div className="um-modal um-confirm-modal">
-            <h3>Confirm Deletion</h3>
-            <p>Are you sure you want to delete this user?</p>
-            <div className="um-modal-actions">
-              <button className="um-btn um-btn-secondary" onClick={() => setConfirmDelete({ show: false, userId: null })}>
+        <ModalOverlay onClose={() => setConfirmDelete({ show: false, userId: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Confirm Deletion</h3>
+            <p className="text-sm text-navy-400 mb-6">Are you sure you want to delete this user? This cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete({ show: false, userId: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300
+                  bg-navy-700/60 hover:bg-navy-700 transition-colors"
+              >
                 Cancel
               </button>
-              <button className="um-btn um-btn-danger" onClick={confirmDeleteUser}>
+              <button
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white
+                  bg-red-500 hover:bg-red-600 transition-colors"
+              >
                 Delete
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
-      {/* Toggle Status Confirmation Modal */}
+      {/* Toggle Status Confirm Modal */}
       {confirmToggle.show && (
-        <div className="um-modal-overlay">
-          <div className="um-modal um-confirm-modal">
-            <h3>Change User Status</h3>
-            <p>Are you sure you want to {users.find(u => u.id === confirmToggle.userId)?.is_active ? "deactivate" : "activate"} this user?</p>
-            <div className="um-modal-actions">
-              <button className="um-btn um-btn-secondary" onClick={() => setConfirmToggle({ show: false, userId: null })}>
+        <ModalOverlay onClose={() => setConfirmToggle({ show: false, userId: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Change User Status</h3>
+            <p className="text-sm text-navy-400 mb-6">
+              Are you sure you want to {toggleUser?.is_active ? 'deactivate' : 'activate'} this user?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmToggle({ show: false, userId: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300
+                  bg-navy-700/60 hover:bg-navy-700 transition-colors"
+              >
                 Cancel
               </button>
-              <button className="um-btn um-btn-warning" onClick={confirmToggleUserStatus}>
-                {users.find(u => u.id === confirmToggle.userId)?.is_active ? "Deactivate" : "Activate"}
+              <button
+                onClick={confirmToggleUserStatus}
+                className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-colors
+                  ${toggleUser?.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+              >
+                {toggleUser?.is_active ? 'Deactivate' : 'Activate'}
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
+      {/* Create / Edit Modal */}
       {showForm && (
-        <div className="um-modal-overlay">
-          <div className="um-modal">
-            <div className="um-modal-header">
-              <h3>{editingUser ? 'Edit User' : 'Create New User'}</h3>
+        <ModalOverlay onClose={closeForm}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700/40">
+              <h3 className="text-lg font-black text-white">
+                {editingUser ? 'Edit User' : 'Create New User'}
+              </h3>
               <button
-                className="um-modal-close"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingUser(null);
-                  setFormData({
-                    first_name: '',
-                    last_name: '',
-                    email: '',
-                    role: 'student',
-                    student_id: '',
-                    phone_number: '',
-                    is_active: true,
-                    password: '',
-                    password2: ''
-                  });
-                }}
+                onClick={closeForm}
+                className="w-8 h-8 rounded-lg flex items-center justify-center
+                  bg-navy-700/60 hover:bg-navy-700 text-navy-400 hover:text-white transition-colors"
               >
-                <i className="fas fa-times"></i>
+                <FiX size={15} aria-hidden="true" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="um-form">
-              <div className="um-form-row">
-                <div className="um-form-group">
-                  <label>First Name</label>
-                  <input
-                    type="text"
-                    name="first_name"
-                    value={formData.first_name}
-                    onChange={handleInputChange}
-                    required
-                  />
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>First Name</Label>
+                  <Field name="first_name" value={formData.first_name} onChange={handleInputChange} required placeholder="Jane" />
                 </div>
-                <div className="um-form-group">
-                  <label>Last Name</label>
-                  <input
-                    type="text"
-                    name="last_name"
-                    value={formData.last_name}
-                    onChange={handleInputChange}
-                    required
-                  />
+                <div>
+                  <Label>Last Name</Label>
+                  <Field name="last_name" value={formData.last_name} onChange={handleInputChange} required placeholder="Doe" />
                 </div>
               </div>
-              <div className="um-form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
-                />
+
+              <div>
+                <Label>Email</Label>
+                <Field type="email" name="email" value={formData.email} onChange={handleInputChange} required placeholder="jane@example.com" />
               </div>
-              <div className="um-form-row">
-                <div className="um-form-group">
-                  <label>Role</label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    required
-                  >
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Role</Label>
+                  <SelectField name="role" value={formData.role} onChange={handleInputChange} required>
                     <option value="student">Student</option>
                     <option value="parent">Parent</option>
+                    <option value="lecturer">Lecturer</option>
                     <option value="staff">Staff</option>
                     <option value="admin">Administrator</option>
-                  </select>
+                  </SelectField>
                 </div>
-                <div className="um-form-group">
-                  <label>Student ID (if applicable)</label>
-                  <input
-                    type="text"
+                <div>
+                  <Label>Student ID</Label>
+                  <Field
                     name="student_id"
                     value={formData.student_id}
                     onChange={handleInputChange}
                     disabled={formData.role !== 'student'}
+                    placeholder="STU-0001"
                   />
                 </div>
               </div>
-              <div className="um-form-group">
-                <label>Phone Number</label>
-                <input
-                  type="tel"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                />
+
+              <div>
+                <Label>Phone Number</Label>
+                <Field type="tel" name="phone_number" value={formData.phone_number} onChange={handleInputChange} placeholder="+237 6XX XXX XXX" />
               </div>
+
               {!editingUser && (
-                <>
-                  <div className="um-form-group">
-                    <label>Password</label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      required
-                    />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Password</Label>
+                    <Field type="password" name="password" value={formData.password} onChange={handleInputChange} required placeholder="••••••••" />
                   </div>
-                  <div className="um-form-group">
-                    <label>Confirm Password</label>
-                    <input
-                      type="password"
-                      name="password2"
-                      value={formData.password2}
-                      onChange={handleInputChange}
-                      required
-                    />
+                  <div>
+                    <Label>Confirm Password</Label>
+                    <Field type="password" name="password2" value={formData.password2} onChange={handleInputChange} required placeholder="••••••••" />
                   </div>
-                </>
+                </div>
               )}
-              <div className="um-form-group um-checkbox-group">
-                <label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
                   <input
                     type="checkbox"
                     name="is_active"
                     checked={formData.is_active}
                     onChange={handleInputChange}
+                    className="sr-only peer"
                   />
-                  Active Account
-                </label>
-              </div>
-              <div className="um-modal-actions">
-                <button type="button" className="um-btn um-btn-secondary" onClick={() => setShowForm(false)}>
+                  <div className="w-10 h-5 rounded-full bg-navy-700 peer-checked:bg-gold transition-colors" />
+                  <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
+                </div>
+                <span className="text-sm font-semibold text-navy-300">Active Account</span>
+              </label>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300
+                    bg-navy-700/60 hover:bg-navy-700 transition-colors"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="um-btn um-btn-primary">
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-sm font-bold text-navy-900
+                    transition-all hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
+                >
                   {editingUser ? 'Update' : 'Create'} User
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
-
-      <div className="um-table-container">
-        {filteredUsers.length > 0 ? (
-          <table className="um-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Student ID</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Last Login</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map(user => (
-                <tr key={user.id} className="um-table-row">
-                  <td>
-                    <div className="um-user-info">
-                      <div className="um-user-avatar">
-                        {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
-                      </div>
-                      <div className="um-user-details">
-                        <strong>{user.first_name} {user.last_name}</strong>
-                        <span>{user.phone_number || '-'}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{user.email}</td>
-                  <td>
-                    <span className={`um-role um-role-${user.role}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td>{user.student_id || '-'}</td>
-                  <td>
-                    <span className={`um-status um-status-${user.is_active ? 'active' : 'inactive'}`}>
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>{formatDate(user.created_at)}</td>
-                  <td>{formatDate(user.last_login)}</td>
-                  <td>
-                    <div className="um-actions">
-                      <button
-                        className="um-action-btn um-edit"
-                        onClick={() => handleEdit(user)}
-                        title="Edit"
-                      >
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button
-                        className={`um-action-btn ${user.is_active ? 'um-deactivate' : 'um-activate'}`}
-                        onClick={() => handleToggleStatus(user.id)}
-                        title={user.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        {user.is_active ? <i className="fas fa-ban"></i> : <i className="fas fa-check"></i>}
-                      </button>
-                      <button
-                        className="um-action-btn um-delete"
-                        onClick={() => handleDelete(user.id)}
-                        title="Delete"
-                      >
-                        <i className="fas fa-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="um-no-users">
-            <i className="fas fa-users"></i>
-            <h3>No users found</h3>
-            <p>Try adjusting your search or filters</p>
-          </div>
-        )}
-      </div>
     </div>
   );
-};
-
-export default UserManagement;
+}

@@ -1,731 +1,592 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../services/api';
-import './AIModelManagement.css';
+import {
+  FiCpu, FiSave, FiPlay, FiRefreshCw,
+  FiCheckCircle, FiSlash, FiMessageSquare, FiClock, FiStar, FiX,
+} from 'react-icons/fi';
 
-/**
- * AIModelManagement (final)
- *
- * - Uses existing users endpoint /api/users/profile/ to detect admin privileges (no backend changes).
- * - Controlled test input, field-level errors, client-side validation.
- * - Shows used_model and request latency after tests.
- */
-
-const DEFAULT_OPENAI_MODEL = {
+const DEFAULT_MODEL = {
   id: null,
   name: 'OpenAI (default)',
   provider: 'OpenAI',
   version: 'gpt-3.5-turbo',
   is_active: true,
-  config: {
-    openai_model: 'gpt-3.5-turbo',
-    temperature: 0.7,
-    max_tokens: 150,
-    top_p: 1.0,
-  },
+  config: { openai_model: 'gpt-3.5-turbo', temperature: 0.7, max_tokens: 150, top_p: 1.0 },
   created_at: null,
 };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-const AIModelManagement = () => {
-  const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
-  const [stats, setStats] = useState(null);
+const parseFieldErrors = (errData) => {
+  const out = {};
+  if (!errData) return out;
+  if (typeof errData === 'string') return { non_field_errors: errData };
+  if (Array.isArray(errData))      return { non_field_errors: errData.join(' ') };
+  Object.entries(errData).forEach(([k, v]) => {
+    if (k === 'config' && typeof v === 'object') {
+      out.config = {};
+      Object.entries(v).forEach(([ck, cv]) => { out.config[ck] = [].concat(cv).join(' '); });
+    } else {
+      out[k] = [].concat(v).join(' ');
+    }
+  });
+  return out;
+};
 
-  const [loadingModels, setLoadingModels] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
+function ModalOverlay({ children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
+    </div>
+  );
+}
 
-  const [testResult, setTestResult] = useState(null);
-  const [usedModelInfo, setUsedModelInfo] = useState(null);
-  const [lastLatencyMs, setLastLatencyMs] = useState(null);
+function Sk({ className = '' }) {
+  return <div className={`bg-navy-700/60 rounded-xl animate-pulse ${className}`} />;
+}
 
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+export default function AIModelManagement() {
+  const [models,         setModels]         = useState([]);
+  const [selectedModel,  setSelectedModel]  = useState(null);
+  const [stats,          setStats]          = useState(null);
+  const [loadingModels,  setLoadingModels]  = useState(false);
+  const [loadingStats,   setLoadingStats]   = useState(false);
+  const [saving,         setSaving]         = useState(false);
+  const [testing,        setTesting]        = useState(false);
+  const [testResult,     setTestResult]     = useState(null);
+  const [usedModelInfo,  setUsedModelInfo]  = useState(null);
+  const [latencyMs,      setLatencyMs]      = useState(null);
+  const [successMsg,     setSuccessMsg]     = useState('');
+  const [errorMsg,       setErrorMsg]       = useState('');
+  const [testMessage,    setTestMessage]    = useState('Give me a short welcome message for new students.');
+  const [fieldErrors,    setFieldErrors]    = useState({});
+  const [isAdmin,        setIsAdmin]        = useState(false);
+  const [confirmToggle,  setConfirmToggle]  = useState({ show: false, id: null });
+  const [confirmReset,   setConfirmReset]   = useState({ show: false, id: null });
 
-  // Controlled test input
-  const [testMessage, setTestMessage] = useState('Give me a short welcome message for new students.');
+  const clearAfter = (ms = 4500) =>
+    setTimeout(() => { setSuccessMsg(''); setErrorMsg(''); setFieldErrors({}); }, ms);
 
-  // Field-level errors
-  const [fieldErrors, setFieldErrors] = useState({});
-
-  // Auth / permissions (use existing profile endpoint)
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [, setCheckingUser] = useState(true); // keep setter, discard unused state variable
-
-  // Confirm modals state
-  const [confirmToggle, setConfirmToggle] = useState({ show: false, modelId: null });
-  const [confirmReset, setConfirmReset] = useState({ show: false, modelId: null });
+  const toast = (msg, isError = false) => {
+    if (isError) setErrorMsg(msg); else setSuccessMsg(msg);
+    clearAfter();
+  };
 
   useEffect(() => {
-    // Detect admin via existing profile endpoint (no backend changes)
-    let mounted = true;
-    const fetchProfile = async () => {
-      setCheckingUser(true);
+    (async () => {
       try {
         const res = await api.get('/users/profile/');
-        if (!mounted) return;
-        const me = res.data || {};
-        const admin = !!me.is_staff || !!me.is_superuser || (me.role && (me.role.toLowerCase() === 'admin' || me.role.toLowerCase() === 'staff'));
-        setIsAdmin(admin);
-      } catch (err) {
-        setIsAdmin(false);
-      } finally {
-        if (mounted) setCheckingUser(false);
-      }
-    };
-    fetchProfile();
-    return () => { mounted = false; };
-  }, []);
-
-  useEffect(() => {
+        const p = res.data || {};
+        setIsAdmin(!!(p.is_staff || p.is_superuser || ['admin','staff'].includes((p.role || '').toLowerCase())));
+      } catch { setIsAdmin(false); }
+    })();
     fetchModels();
     fetchStats();
-    // eslint-disable-next-line
-  }, []);
-
-  const clearMessagesAfter = (ms = 4500) => {
-    if (!ms) return;
-    setTimeout(() => {
-      setSuccessMessage('');
-      setErrorMessage('');
-      setFieldErrors({});
-    }, ms);
-  };
-
-  const parseFieldErrors = (errData) => {
-    const result = {};
-    if (!errData) return result;
-    if (typeof errData === 'string') {
-      result.non_field_errors = errData;
-      return result;
-    }
-    if (Array.isArray(errData)) {
-      result.non_field_errors = errData.join(' ');
-      return result;
-    }
-    Object.entries(errData).forEach(([k, v]) => {
-      if (k === 'config' && typeof v === 'object') {
-        result.config = {};
-        Object.entries(v).forEach(([cfgKey, cfgVal]) => {
-          if (Array.isArray(cfgVal)) result.config[cfgKey] = cfgVal.join(' ');
-          else result.config[cfgKey] = String(cfgVal);
-        });
-      } else {
-        if (Array.isArray(v)) result[k] = v.join(' ');
-        else result[k] = String(v);
-      }
-    });
-    return result;
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchModels = async () => {
     setLoadingModels(true);
-    setErrorMessage('');
     try {
-      const res = await api.get('/models/');
-      const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+      const res  = await api.get('/models/');
+      const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
       setModels(data);
-      if (data.length > 0) {
-        setSelectedModel(prev => (prev ? (data.find(m => m.id === prev.id) || data[0]) : data[0]));
-      } else {
-        setSelectedModel(DEFAULT_OPENAI_MODEL);
-      }
-    } catch (err) {
-      console.error('Error fetching models:', err);
+      setSelectedModel(prev =>
+        data.length > 0
+          ? (prev ? (data.find(m => m.id === prev.id) || data[0]) : data[0])
+          : DEFAULT_MODEL
+      );
+    } catch {
       setModels([]);
-      setSelectedModel(DEFAULT_OPENAI_MODEL);
-      setErrorMessage('Failed to load AI models (showing default OpenAI configuration).');
-      clearMessagesAfter();
-    } finally {
-      setLoadingModels(false);
-    }
+      setSelectedModel(DEFAULT_MODEL);
+      toast('Failed to load AI models (showing default OpenAI configuration).', true);
+    } finally { setLoadingModels(false); }
   };
 
   const fetchStats = async () => {
     setLoadingStats(true);
-    setErrorMessage('');
     try {
       const res = await api.get('/chat/stats/');
-      const s = res.data && res.data.stats ? res.data.stats : res.data;
-      setStats(s);
-    } catch (err) {
-      console.error('Failed to load statistics.', err);
+      setStats(res.data?.stats ?? res.data);
+    } catch {
       setStats(null);
-      setErrorMessage('Failed to load statistics.');
-      clearMessagesAfter();
-    } finally {
-      setLoadingStats(false);
+    } finally { setLoadingStats(false); }
+  };
+
+  const formatDate = (s) => { try { return s ? new Date(s).toLocaleString() : '—'; } catch { return s; } };
+
+  const updateConfig = (modelId, key, rawVal) => {
+    let val = rawVal;
+    if (key === 'temperature' || key === 'top_p') {
+      val = clamp(isNaN(Number(val)) ? 0 : Number(val), 0, 1);
     }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try { return new Date(dateString).toLocaleString(); } catch { return dateString; }
-  };
-
-  // Toggle active/inactive (only for persisted models)
-  const handleToggleClick = (modelId) => {
-    if (!isAdmin) {
-      setErrorMessage('Only admins can change model activation.');
-      clearMessagesAfter();
+    if (key === 'max_tokens') {
+      val = Math.max(1, parseInt(val || 0, 10) || 1);
+    }
+    setFieldErrors(prev => ({ ...prev, config: { ...(prev.config || {}), [key]: undefined } }));
+    if (!modelId) {
+      setSelectedModel(prev => ({ ...prev, config: { ...(prev.config || {}), [key]: val } }));
       return;
     }
-    setConfirmToggle({ show: true, modelId });
+    setModels(prev => prev.map(m => m.id === modelId ? { ...m, config: { ...(m.config || {}), [key]: val } } : m));
+    if (selectedModel?.id === modelId)
+      setSelectedModel(prev => ({ ...prev, config: { ...(prev.config || {}), [key]: val } }));
+  };
+
+  const validateConfig = (cfg) => {
+    const e = {};
+    if (!cfg) return e;
+    if (typeof cfg.temperature !== 'number' || cfg.temperature < 0 || cfg.temperature > 1)
+      e.temperature = 'Must be between 0 and 1.';
+    if (typeof cfg.top_p !== 'number' || cfg.top_p < 0 || cfg.top_p > 1)
+      e.top_p = 'Must be between 0 and 1.';
+    if (!Number.isInteger(cfg.max_tokens) || cfg.max_tokens < 1 || cfg.max_tokens > 40000)
+      e.max_tokens = 'Integer between 1 and 40000.';
+    return e;
+  };
+
+  const saveConfig = async (modelId) => {
+    if (!isAdmin) { toast('Only admins may save model configurations.', true); return; }
+    const cfg = selectedModel?.config || {};
+    const cfgErrors = validateConfig(cfg);
+    if (Object.keys(cfgErrors).length) {
+      setFieldErrors({ config: cfgErrors });
+      toast('Fix the highlighted configuration errors.', true);
+      return;
+    }
+    setSaving(true);
+    setFieldErrors({});
+    try {
+      if (!modelId) {
+        await api.post('/models/', {
+          name: selectedModel.name || 'OpenAI',
+          version: selectedModel.version || '',
+          provider: selectedModel.provider || 'OpenAI',
+          is_active: selectedModel.is_active ?? true,
+          config: cfg,
+        });
+        toast('Model created on server.');
+        await fetchModels();
+      } else {
+        const model = models.find(m => m.id === modelId);
+        await api.patch(`/models/${modelId}/`, { config: model?.config });
+        toast('Configuration saved.');
+        fetchModels();
+      }
+    } catch (err) {
+      const parsed = parseFieldErrors(err?.response?.data);
+      setFieldErrors(parsed);
+      toast(parsed.non_field_errors || 'Failed to save configuration.', true);
+    } finally { setSaving(false); }
+  };
+
+  const handleToggleClick = (id) => {
+    if (!isAdmin) { toast('Only admins can change model activation.', true); return; }
+    setConfirmToggle({ show: true, id });
   };
 
   const confirmToggleModel = async () => {
-    const id = confirmToggle.modelId;
-    setConfirmToggle({ show: false, modelId: null });
+    const id = confirmToggle.id;
+    setConfirmToggle({ show: false, id: null });
     const model = models.find(m => m.id === id);
-    if (!model) {
-      setErrorMessage('Model not found.');
-      clearMessagesAfter();
-      return;
-    }
-
+    if (!model) { toast('Model not found.', true); return; }
     const newState = !model.is_active;
-
-    // optimistic update
-    setModels(prev => prev.map(m => (m.id === id ? { ...m, is_active: newState } : m)));
+    setModels(prev => prev.map(m => m.id === id ? { ...m, is_active: newState } : m));
     if (selectedModel?.id === id) setSelectedModel(prev => ({ ...prev, is_active: newState }));
-
     try {
       await api.patch(`/models/${id}/`, { is_active: newState });
-      setSuccessMessage(`Model ${newState ? 'activated' : 'deactivated'}.`);
-      clearMessagesAfter();
+      toast(`Model ${newState ? 'activated' : 'deactivated'}.`);
       fetchModels();
     } catch (err) {
-      console.error('Failed to toggle model status', err);
-      const parsed = err?.response?.data ? parseFieldErrors(err.response.data) : null;
-      if (parsed && parsed.non_field_errors) setErrorMessage(parsed.non_field_errors);
-      else setErrorMessage('Could not update model status.');
-      setFieldErrors(parsed || {});
-      clearMessagesAfter();
-      // rollback
-      setModels(prev => prev.map(m => (m.id === id ? { ...m, is_active: model.is_active } : m)));
+      const parsed = parseFieldErrors(err?.response?.data);
+      toast(parsed.non_field_errors || 'Could not update model status.', true);
+      setModels(prev => prev.map(m => m.id === id ? { ...m, is_active: model.is_active } : m));
       if (selectedModel?.id === id) setSelectedModel(model);
     }
   };
 
-  // Local update of selected model config
-  const updateModelConfigLocal = (modelId, key, value) => {
-    if (key === 'temperature' || key === 'top_p') {
-      value = Number(value);
-      if (Number.isNaN(value)) value = 0;
-      value = clamp(value, 0, 1);
-    }
-    if (key === 'max_tokens') {
-      value = parseInt(value || 0, 10) || 0;
-      if (value < 1) value = 1;
-    }
-
-    setFieldErrors(prev => {
-      const next = { ...prev };
-      if (next.config) next.config = { ...next.config, [key]: undefined };
-      return next;
-    });
-
-    if (!modelId) {
-      setSelectedModel(prev => ({ ...prev, config: { ...(prev.config || {}), [key]: value } }));
-      return;
-    }
-    setModels(prev => prev.map(m => (m.id === modelId ? { ...m, config: { ...(m.config || {}), [key]: value } } : m)));
-    if (selectedModel?.id === modelId) setSelectedModel(prev => ({ ...prev, config: { ...(prev.config || {}), [key]: value } }));
+  const handleResetClick = (id) => {
+    if (!isAdmin && id) { toast('Only admins may reset server-side configuration.', true); return; }
+    setConfirmReset({ show: true, id });
   };
 
-  // Client-side validation before sending to server
-  const validateConfig = (cfg) => {
-    const errors = {};
-    if (!cfg) return errors;
-    const temp = cfg.temperature;
-    const top_p = cfg.top_p;
-    const max_tokens = cfg.max_tokens;
-    if (typeof temp !== 'number' || temp < 0 || temp > 1) {
-      errors.temperature = 'Temperature must be a number between 0 and 1.';
-    }
-    if (typeof top_p !== 'number' || top_p < 0 || top_p > 1) {
-      errors.top_p = 'Top P must be a number between 0 and 1.';
-    }
-    if (!Number.isInteger(max_tokens) || max_tokens < 1 || max_tokens > 40000) {
-      errors.max_tokens = 'Max tokens must be an integer between 1 and 40000.';
-    }
-    return errors;
-  };
-
-  // Save config: PATCH if model exists, POST if creating default on server
-  const saveModelConfig = async (modelId) => {
-    if (!isAdmin) {
-      setErrorMessage('Only admins may save model configurations.');
-      clearMessagesAfter();
-      return;
-    }
-
-    const cfg = selectedModel?.config || {};
-    const clientErrors = validateConfig(cfg);
-    if (Object.keys(clientErrors).length > 0) {
-      setFieldErrors({ config: clientErrors });
-      setErrorMessage('Please fix the highlighted configuration errors.');
-      clearMessagesAfter();
-      return;
-    }
-
-    // creating a persisted model if the selected is the default (id == null)
-    if (!modelId) {
-      const payload = {
-        name: selectedModel.name || 'OpenAI',
-        version: selectedModel.version || '',
-        provider: selectedModel.provider || 'OpenAI',
-        is_active: selectedModel.is_active ?? true,
-        config: selectedModel.config || {},
-      };
-      setSaving(true);
-      setFieldErrors({});
-      try {
-        await api.post('/models/', payload);
-        setSuccessMessage('Model created on server and saved.');
-        clearMessagesAfter();
-        await fetchModels();
-      } catch (err) {
-        console.error('Failed to create model on server', err);
-        const parsed = err?.response?.data ? parseFieldErrors(err.response.data) : null;
-        setFieldErrors(parsed || {});
-        setErrorMessage(parsed?.non_field_errors || 'Could not create model on server.');
-        clearMessagesAfter();
-      } finally {
-        setSaving(false);
-      }
-      return;
-    }
-
-    const model = models.find(m => m.id === modelId);
-    if (!model) {
-      setErrorMessage('Model not found.');
-      clearMessagesAfter();
-      return;
-    }
-
-    setSaving(true);
-    setFieldErrors({});
-    try {
-      await api.patch(`/models/${modelId}/`, { config: model.config });
-      setSuccessMessage('Configuration saved.');
-      clearMessagesAfter();
-      fetchModels();
-    } catch (err) {
-      console.error('Failed to save model config', err);
-      const parsed = err?.response?.data ? parseFieldErrors(err.response.data) : null;
-      setFieldErrors(parsed || {});
-      setErrorMessage(parsed?.non_field_errors || 'Failed to save configuration.');
-      clearMessagesAfter();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Reset config to server defaults (re-fetch single model)
-  const handleResetClick = (modelId) => {
-    if (!isAdmin && modelId) {
-      setErrorMessage('Only admins may reset server-side configuration.');
-      clearMessagesAfter();
-      return;
-    }
-    setConfirmReset({ show: true, modelId });
-  };
-
-  const performResetConfirm = async () => {
-    const id = confirmReset.modelId;
-    setConfirmReset({ show: false, modelId: null });
-
+  const confirmReset_ = async () => {
+    const id = confirmReset.id;
+    setConfirmReset({ show: false, id: null });
     if (!id) {
-      setSelectedModel(DEFAULT_OPENAI_MODEL);
-      setSuccessMessage('Local configuration reset to default OpenAI settings.');
-      clearMessagesAfter();
+      setSelectedModel(DEFAULT_MODEL);
+      toast('Local configuration reset to default OpenAI settings.');
       return;
     }
-
     try {
       const res = await api.get(`/models/${id}/`);
-      const serverModel = res.data;
-      setModels(prev => (prev || []).map(m => (m.id === id ? serverModel : m)));
-      if (selectedModel?.id === id) setSelectedModel(serverModel);
-      setSuccessMessage('Configuration reset to server defaults.');
-      clearMessagesAfter();
+      setModels(prev => prev.map(m => m.id === id ? res.data : m));
+      if (selectedModel?.id === id) setSelectedModel(res.data);
+      toast('Configuration reset to server defaults.');
     } catch (err) {
-      console.error('Reset failed', err);
-      const parsed = err?.response?.data ? parseFieldErrors(err.response.data) : null;
-      setFieldErrors(parsed || {});
-      setErrorMessage(parsed?.non_field_errors || 'Could not reset to defaults.');
-      clearMessagesAfter();
+      const parsed = parseFieldErrors(err?.response?.data);
+      toast(parsed.non_field_errors || 'Could not reset to defaults.', true);
     }
   };
 
-  // Test model by sending message to /api/chat/ai/ with model_id (or null for default)
-  const testModel = async (message) => {
-    if (!selectedModel) {
-      setErrorMessage('Select a model first.');
-      clearMessagesAfter();
-      return;
-    }
-    if (!message || !message.trim()) {
-      setErrorMessage('Enter a test message.');
-      clearMessagesAfter();
-      return;
-    }
-
+  const testModel = async () => {
+    if (!selectedModel)       { toast('Select a model first.', true); return; }
+    if (!testMessage.trim())  { toast('Enter a test message.', true); return; }
     setTesting(true);
     setTestResult(null);
     setUsedModelInfo(null);
-    setLastLatencyMs(null);
-    setErrorMessage('');
+    setLatencyMs(null);
+    setErrorMsg('');
     try {
-      const payload = { message, model_id: selectedModel.id ?? null };
-      const t0 = performance.now();
-      const res = await api.post('/chat/ai/', payload);
-      const t1 = performance.now();
-      setLastLatencyMs(Math.round(t1 - t0));
-
-      const aiMessage = res.data.ai_message || res.data;
-      setTestResult(aiMessage);
-
-      // backend may return used_model id
+      const t0  = performance.now();
+      const res = await api.post('/chat/ai/', { message: testMessage, model_id: selectedModel.id ?? null });
+      setLatencyMs(Math.round(performance.now() - t0));
+      setTestResult(res.data.ai_message || res.data);
       const usedId = res.data.used_model ?? null;
       if (usedId) {
         const cached = models.find(m => m.id === usedId);
-        if (cached) setUsedModelInfo({ id: usedId, name: `${cached.provider} · ${cached.name}` });
-        else {
+        if (cached) {
+          setUsedModelInfo({ id: usedId, name: `${cached.provider} · ${cached.name}` });
+        } else {
           try {
             const mres = await api.get(`/models/${usedId}/`);
-            const m = mres.data;
-            setUsedModelInfo({ id: usedId, name: `${m.provider} · ${m.name}` });
-          } catch {
-            setUsedModelInfo({ id: usedId, name: `Model ${usedId}` });
-          }
+            setUsedModelInfo({ id: usedId, name: `${mres.data.provider} · ${mres.data.name}` });
+          } catch { setUsedModelInfo({ id: usedId, name: `Model ${usedId}` }); }
         }
       } else {
         setUsedModelInfo({ id: null, name: 'OpenAI (server default)' });
       }
-
-      setSuccessMessage('Test completed.');
-      clearMessagesAfter();
+      toast('Test completed.');
       fetchStats();
     } catch (err) {
-      console.error('Test failed', err);
-      const parsed = err?.response?.data ? parseFieldErrors(err.response.data) : null;
-      setFieldErrors(parsed || {});
-      setErrorMessage(parsed?.non_field_errors || err?.response?.data?.error || 'Test failed. See server logs.');
-      clearMessagesAfter();
-    } finally {
-      setTesting(false);
-    }
+      const parsed = parseFieldErrors(err?.response?.data);
+      toast(parsed.non_field_errors || err?.response?.data?.error || 'Test failed.', true);
+    } finally { setTesting(false); }
   };
 
-  // Decide models list to render: server models if any, otherwise a visible default
-  const modelsToRender = models.length > 0 ? models : [DEFAULT_OPENAI_MODEL];
-
-  // computed: are save/toggle actions allowed for current selection?
-  const canSave = useMemo(() => isAdmin, [isAdmin]);
-  const canToggle = useMemo(() => isAdmin, [isAdmin]);
+  const modelsToRender = models.length > 0 ? models : [DEFAULT_MODEL];
+  const cfg = selectedModel?.config || {};
 
   return (
-    <div className="aim-container">
-      {/* Inline messages */}
-      {successMessage && (
-        <div className="aim-success">
-          <i className="fas fa-check-circle" /> {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="aim-error-banner">
-          <i className="fas fa-exclamation-circle" /> {errorMessage}
-        </div>
-      )}
+    <div className="space-y-6">
 
-      <div className="aim-header">
-        <h2>AI Model Management</h2>
-        <p>Configure and monitor your AI assistant's performance</p>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black text-white tracking-tight">AI Model Management</h1>
+        <p className="text-sm text-navy-400 mt-1">Configure and monitor your AI assistant's performance</p>
       </div>
 
-      <div className="aim-content">
-        {/* Models column */}
-        <div className="aim-card aim-models">
-          <h3>Available Models</h3>
-
-          {loadingModels ? (
-            <div className="aim-loading">Loading models...</div>
-          ) : modelsToRender.length === 0 ? (
-            <div className="aim-empty">No models available</div>
-          ) : (
-            <div className="aim-models-list">
-              {modelsToRender.map((model) => (
-                <div
-                  key={model.id ?? 'openai-default'}
-                  role="button"
-                  tabIndex={0}
-                  className={`aim-model-item ${model.is_active ? 'aim-active' : 'aim-inactive'} ${selectedModel?.id === model.id ? 'aim-selected' : ''}`}
-                  onClick={() => setSelectedModel(model)}
-                  onKeyDown={(e) => e.key === 'Enter' && setSelectedModel(model)}
-                >
-                  <div className="aim-model-header">
-                    <h4>
-                      {model.provider} · {model.name}
-                      {model.version ? <small style={{ fontWeight: 400, color: '#6b7b88', marginLeft: 6 }}>v{model.version}</small> : null}
-                    </h4>
-                    <span className={`aim-status aim-status-${model.is_active ? 'active' : 'inactive'}`}>
-                      {model.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-
-                  <div className="aim-model-details">
-                    <p><strong>Created:</strong> {formatDate(model.created_at || model.lastUpdated)}</p>
-                  </div>
-
-                  <div className="aim-model-actions">
-                    <button
-                      className={`aim-btn aim-btn-sm ${model.is_active ? 'aim-btn-warning' : 'aim-btn-success'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (model.id) {
-                          if (!canToggle) {
-                            setErrorMessage('Only admins can activate/deactivate models.');
-                            clearMessagesAfter();
-                            return;
-                          }
-                          handleToggleClick(model.id);
-                        } else {
-                          setErrorMessage('Cannot toggle the default model. Create it on server to manage activation.');
-                          clearMessagesAfter();
-                        }
-                      }}
-                      title={!canToggle ? 'Admin only' : undefined}
-                      disabled={!canToggle}
-                    >
-                      {model.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </div>
-                </div>
-              ))}
+      {/* Toast messages */}
+      {(successMsg || errorMsg) && (
+        <div>
+          {successMsg && (
+            <div className="px-4 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-semibold">
+              {successMsg}
+            </div>
+          )}
+          {errorMsg && (
+            <div className="px-4 py-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-semibold">
+              {errorMsg}
             </div>
           )}
         </div>
+      )}
 
-        {/* Detail panel */}
-        <div className="aim-card aim-detail">
-          {selectedModel ? (
-            <>
-              <h3>Model Configuration: {selectedModel.provider} · {selectedModel.name}</h3>
+      <div className="grid lg:grid-cols-3 gap-5">
 
-              <div className="aim-config-section">
-                <h4>Parameters</h4>
-                <div className="aim-config-params">
-                  <div className="aim-param">
-                    <label>Temperature</label>
-                    <div className="aim-param-controls">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={(selectedModel.config && selectedModel.config.temperature) ?? 0.7}
-                        onChange={(e) => updateModelConfigLocal(selectedModel.id, 'temperature', parseFloat(e.target.value))}
-                      />
-                      <span>{(((selectedModel.config && selectedModel.config.temperature) ?? 0.7)).toFixed(2)}</span>
-                    </div>
-                    {fieldErrors?.config?.temperature && <div className="aim-field-error">{fieldErrors.config.temperature}</div>}
-                    <p className="aim-param-help">Controls randomness: lower = deterministic, higher = creative</p>
-                  </div>
+        {/* Models list */}
+        <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-navy-700/40">
+            <FiCpu size={14} className="text-gold" aria-hidden="true" />
+            <h2 className="text-sm font-black text-white">Available Models</h2>
+          </div>
 
-                  <div className="aim-param">
-                    <label>Max Tokens</label>
-                    <div className="aim-param-controls">
-                      <input
-                        type="number"
-                        min="64"
-                        max="40000"
-                        step="1"
-                        value={(selectedModel.config && selectedModel.config.max_tokens) ?? 1000}
-                        onChange={(e) => updateModelConfigLocal(selectedModel.id, 'max_tokens', parseInt(e.target.value || '0'))}
-                      />
-                    </div>
-                    {fieldErrors?.config?.max_tokens && <div className="aim-field-error">{fieldErrors.config.max_tokens}</div>}
-                    <p className="aim-param-help">Maximum length of the model response.</p>
-                  </div>
-
-                  <div className="aim-param">
-                    <label>Top P</label>
-                    <div className="aim-param-controls">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={(selectedModel.config && selectedModel.config.top_p) ?? 1.0}
-                        onChange={(e) => updateModelConfigLocal(selectedModel.id, 'top_p', parseFloat(e.target.value))}
-                      />
-                      <span>{(((selectedModel.config && selectedModel.config.top_p) ?? 1.0)).toFixed(2)}</span>
-                    </div>
-                    {fieldErrors?.config?.top_p && <div className="aim-field-error">{fieldErrors.config.top_p}</div>}
-                    <p className="aim-param-help">Nucleus sampling. Lower = more focused outputs.</p>
-                  </div>
+          <div className="p-3 space-y-2">
+            {loadingModels ? (
+              [...Array(3)].map((_, i) => <Sk key={i} className="h-20" />)
+            ) : modelsToRender.map(model => (
+              <button
+                key={model.id ?? 'openai-default'}
+                onClick={() => setSelectedModel(model)}
+                className={`w-full text-left px-4 py-3.5 rounded-xl border transition-all
+                  ${selectedModel?.id === model.id
+                    ? 'border-gold/40 bg-gold/5'
+                    : 'border-navy-700/40 hover:border-navy-600/60 bg-navy-900/40'}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-sm font-bold text-white leading-snug">
+                    {model.provider} · {model.name}
+                    {model.version && <span className="text-navy-500 font-normal text-xs ml-1">v{model.version}</span>}
+                  </p>
+                  <span className={`flex-shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase
+                    ${model.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                    {model.is_active ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-              </div>
-
-              <div className="aim-action-buttons">
-                <button
-                  className="aim-btn aim-btn-primary"
-                  disabled={saving || !canSave}
-                  onClick={() => saveModelConfig(selectedModel.id)}
-                  title={!canSave ? 'Save disabled - admin only' : undefined}
-                >
-                  {saving ? 'Saving...' : <><i className="fas fa-save" /> Save Changes</>}
-                </button>
-
-                <div className="aim-test-control">
-                  <textarea
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                    placeholder="Enter test prompt..."
-                    rows={2}
-                  />
+                <p className="text-xs text-navy-500">{formatDate(model.created_at)}</p>
+                <div className="mt-2.5">
                   <button
-                    className="aim-btn aim-btn-info"
-                    disabled={testing}
-                    onClick={() => testModel(testMessage)}
-                    title="Send a test prompt to the model"
+                    onClick={e => {
+                      e.stopPropagation();
+                      model.id
+                        ? handleToggleClick(model.id)
+                        : toast('Cannot toggle default model. Create it on server first.', true);
+                    }}
+                    disabled={!isAdmin}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-black transition-colors disabled:opacity-40
+                      ${model.is_active
+                        ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                        : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
                   >
-                    {testing ? 'Testing...' : <><i className="fas fa-play" /> Test Model</>}
+                    {model.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                 </div>
+              </button>
+            ))}
+          </div>
+        </div>
 
+        {/* Config + test panel */}
+        <div className="lg:col-span-1 bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-navy-700/40">
+            <FiCpu size={14} className="text-gold" aria-hidden="true" />
+            <h2 className="text-sm font-black text-white truncate">
+              {selectedModel ? `${selectedModel.provider} · ${selectedModel.name}` : 'Model Configuration'}
+            </h2>
+          </div>
+
+          {!selectedModel ? (
+            <div className="py-20 text-center px-5">
+              <FiCpu size={28} className="text-navy-600 mx-auto mb-3" aria-hidden="true" />
+              <p className="text-navy-400 text-sm">Select a model to view its configuration</p>
+            </div>
+          ) : (
+            <div className="p-5 space-y-5">
+              {/* Temperature */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-black uppercase tracking-wide text-navy-400">Temperature</label>
+                  <span className="text-sm font-black text-gold tabular-nums">{(cfg.temperature ?? 0.7).toFixed(2)}</span>
+                </div>
+                <input
+                  type="range" min="0" max="1" step="0.01"
+                  value={cfg.temperature ?? 0.7}
+                  onChange={e => updateConfig(selectedModel.id, 'temperature', parseFloat(e.target.value))}
+                  className="w-full accent-gold"
+                />
+                {fieldErrors?.config?.temperature && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.config.temperature}</p>
+                )}
+                <p className="text-[11px] text-navy-600 mt-1">Controls randomness: lower = deterministic, higher = creative</p>
+              </div>
+
+              {/* Max Tokens */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wide text-navy-400 mb-1.5">Max Tokens</label>
+                <input
+                  type="number" min="64" max="40000"
+                  value={cfg.max_tokens ?? 1000}
+                  onChange={e => updateConfig(selectedModel.id, 'max_tokens', parseInt(e.target.value || '0'))}
+                  className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+                    text-white text-sm focus:outline-none focus:border-gold/50 transition-colors"
+                />
+                {fieldErrors?.config?.max_tokens && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.config.max_tokens}</p>
+                )}
+                <p className="text-[11px] text-navy-600 mt-1">Maximum length of the model response.</p>
+              </div>
+
+              {/* Top P */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-black uppercase tracking-wide text-navy-400">Top P</label>
+                  <span className="text-sm font-black text-gold tabular-nums">{(cfg.top_p ?? 1.0).toFixed(2)}</span>
+                </div>
+                <input
+                  type="range" min="0" max="1" step="0.01"
+                  value={cfg.top_p ?? 1.0}
+                  onChange={e => updateConfig(selectedModel.id, 'top_p', parseFloat(e.target.value))}
+                  className="w-full accent-gold"
+                />
+                {fieldErrors?.config?.top_p && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.config.top_p}</p>
+                )}
+                <p className="text-[11px] text-navy-600 mt-1">Nucleus sampling. Lower = more focused outputs.</p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-2">
                 <button
-                  className="aim-btn aim-btn-secondary"
-                  onClick={() => handleResetClick(selectedModel.id)}
-                  title={!isAdmin && selectedModel?.id ? 'Admin only' : undefined}
-                  disabled={selectedModel?.id ? !isAdmin : false}
+                  onClick={() => saveConfig(selectedModel.id)}
+                  disabled={saving || !isAdmin}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-navy-900
+                    disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
                 >
-                  <i className="fas fa-undo" /> Reset to Defaults
+                  <FiSave size={13} aria-hidden="true" />
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => handleResetClick(selectedModel.id)}
+                  disabled={selectedModel?.id ? !isAdmin : false}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-navy-300
+                    bg-navy-700/60 hover:bg-navy-700 border border-navy-700/40
+                    disabled:opacity-40 transition-colors"
+                >
+                  <FiRefreshCw size={13} aria-hidden="true" />
+                  Reset
                 </button>
               </div>
 
+              {/* Test panel */}
+              <div className="pt-2 border-t border-navy-700/40">
+                <p className="text-xs font-black uppercase tracking-wide text-navy-400 mb-2">Test Model</p>
+                <textarea
+                  value={testMessage}
+                  onChange={e => setTestMessage(e.target.value)}
+                  rows={3}
+                  placeholder="Enter test prompt…"
+                  className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+                    text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/50
+                    resize-none transition-colors mb-2"
+                />
+                <button
+                  onClick={testModel}
+                  disabled={testing}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-navy-300
+                    bg-navy-700/60 hover:bg-navy-700 border border-navy-700/40
+                    disabled:opacity-40 transition-colors"
+                >
+                  <FiPlay size={13} aria-hidden="true" />
+                  {testing ? 'Testing…' : 'Test Model'}
+                </button>
+              </div>
+
+              {/* Test result */}
               {testResult && (
-                <div className="aim-test-result" style={{ marginTop: 12 }}>
-                  <h4>Last Test Result</h4>
-                  <div className="aim-response">
-                    <div className="aim-response-header">
-                      <div>
-                        <strong>Assistant</strong>
-                        {usedModelInfo && <span style={{ marginLeft: 12, color: '#345' }}>Used model: {usedModelInfo.name} {usedModelInfo.id !== null ? `(id:${usedModelInfo.id})` : '(server default)'}</span>}
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        {lastLatencyMs !== null && <div style={{ fontSize: 12, color: '#666' }}>Latency: {lastLatencyMs} ms</div>}
-                        <div style={{ fontSize: 12, color: '#666' }}>{formatDate(testResult.created_at)}</div>
-                      </div>
-                    </div>
-                    <div className="aim-response-body">
-                      {testResult.message_text || testResult.ai_message || JSON.stringify(testResult)}
-                    </div>
+                <div className="px-4 py-4 rounded-xl bg-navy-700/40 border border-navy-700/40 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-black uppercase tracking-wide text-navy-400">Last Test Result</p>
+                    {latencyMs !== null && (
+                      <span className="text-[11px] text-navy-500">{latencyMs} ms</span>
+                    )}
                   </div>
+                  {usedModelInfo && (
+                    <p className="text-[11px] text-navy-500">
+                      Used: {usedModelInfo.name}{usedModelInfo.id !== null ? ` (id:${usedModelInfo.id})` : ''}
+                    </p>
+                  )}
+                  <p className="text-sm text-navy-200 leading-relaxed">
+                    {testResult.message_text || testResult.ai_message || JSON.stringify(testResult)}
+                  </p>
                 </div>
               )}
-            </>
-          ) : (
-            <div className="aim-no-selection">
-              <i className="fas fa-robot" />
-              <p>Select a model to view its configuration</p>
             </div>
           )}
         </div>
 
-        {/* Stats column */}
-        <div className="aim-card aim-stats">
-          <h3>AI Performance Statistics</h3>
+        {/* Stats */}
+        <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-navy-700/40">
+            <FiMessageSquare size={14} className="text-gold" aria-hidden="true" />
+            <h2 className="text-sm font-black text-white">AI Performance Stats</h2>
+          </div>
 
-          {loadingStats ? (
-            <div className="aim-loading">Loading stats...</div>
-          ) : stats ? (
-            <>
-              <div className="aim-stats-grid">
-                <div className="aim-stat-card">
-                  <div className="aim-stat-icon"><i className="fas fa-comments" /></div>
-                  <div className="aim-stat-info">
-                    <h3>{(stats.total_messages ?? 0).toLocaleString()}</h3>
-                    <p>Total Messages</p>
-                  </div>
-                </div>
-
-                <div className="aim-stat-card">
-                  <div className="aim-stat-icon"><i className="fas fa-clock" /></div>
-                  <div className="aim-stat-info">
-                    <h3>{(stats.average_response_time ?? '-')}</h3>
-                    <p>Avg Response Time (s)</p>
-                  </div>
-                </div>
-
-                <div className="aim-stat-card">
-                  <div className="aim-stat-icon"><i className="fas fa-star" /></div>
-                  <div className="aim-stat-info">
-                    <h3>{(stats.user_satisfaction_rate ?? '-')}</h3>
-                    <p>User Satisfaction</p>
-                  </div>
-                </div>
+          <div className="p-5">
+            {loadingStats ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => <Sk key={i} className="h-16" />)}
               </div>
-
-              <div className="aim-common-questions">
-                <h4>Most Common Questions</h4>
-                <div className="aim-questions-list">
-                  {(stats.common_questions || []).map((q, i) => (
-                    <div key={i} className="aim-question-item">
-                      <span className="aim-question-text">{q.message_text ?? q.question ?? q.text ?? '—'}</span>
-                      <span className="aim-question-count">{q.count ?? q.hits ?? '—'} times</span>
+            ) : !stats ? (
+              <div className="py-10 text-center text-sm text-navy-500">No stats available</div>
+            ) : (
+              <div className="space-y-4">
+                {/* Stat cards */}
+                <div className="space-y-3">
+                  {[
+                    { icon: FiMessageSquare, label: 'Total Messages',    value: (stats.total_messages ?? 0).toLocaleString(),          color: 'bg-sky-500/20 text-sky-400'     },
+                    { icon: FiClock,         label: 'Avg Response Time', value: `${stats.average_response_time ?? '—'} s`,             color: 'bg-amber-500/20 text-amber-400' },
+                    { icon: FiStar,          label: 'User Satisfaction', value: stats.user_satisfaction_rate ?? '—',                    color: 'bg-emerald-500/20 text-emerald-400' },
+                  ].map(({ icon: Icon, label, value, color }) => (
+                    <div key={label} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-navy-700/40">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color.split(' ')[0]}`}>
+                        <Icon size={16} aria-hidden="true" className={color.split(' ')[1]} />
+                      </div>
+                      <div>
+                        <p className="text-lg font-black text-white tabular-nums">{value}</p>
+                        <p className="text-xs text-navy-500">{label}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Common questions */}
+                {stats.common_questions?.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-navy-500 mb-3">
+                      Most Common Questions
+                    </p>
+                    <div className="space-y-2">
+                      {stats.common_questions.map((q, i) => (
+                        <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-xl bg-navy-700/30">
+                          <p className="text-xs text-navy-300 leading-relaxed line-clamp-2">
+                            {q.message_text ?? q.question ?? q.text ?? '—'}
+                          </p>
+                          <span className="flex-shrink-0 text-[11px] font-black text-navy-500">
+                            {q.count ?? q.hits ?? '—'}×
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </>
-          ) : (
-            <div className="aim-empty">No stats available</div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Confirm Toggle Modal */}
       {confirmToggle.show && (
-        <div className="aim-modal-overlay">
-          <div className="aim-modal am-confirm-modal">
-            <h3>Confirm</h3>
-            <p>Are you sure you want to change activation for this model?</p>
-            <div className="am-modal-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="aim-btn aim-btn-secondary" onClick={() => setConfirmToggle({ show: false, modelId: null })}>
+        <ModalOverlay onClose={() => setConfirmToggle({ show: false, id: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Change Model Activation</h3>
+            <p className="text-sm text-navy-400 mb-6">Are you sure you want to change the activation status of this model?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmToggle({ show: false, id: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                 Cancel
               </button>
-              <button className="aim-btn aim-btn-warning" onClick={confirmToggleModel}>
+              <button onClick={confirmToggleModel}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors">
                 Confirm
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Confirm Reset Modal */}
       {confirmReset.show && (
-        <div className="aim-modal-overlay">
-          <div className="aim-modal am-confirm-modal">
-            <h3>Reset Configuration</h3>
-            <p>Reset this model's configuration to server defaults?</p>
-            <div className="am-modal-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="aim-btn aim-btn-secondary" onClick={() => setConfirmReset({ show: false, modelId: null })}>
+        <ModalOverlay onClose={() => setConfirmReset({ show: false, id: null })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-lg font-black text-white mb-2">Reset Configuration</h3>
+            <p className="text-sm text-navy-400 mb-6">Reset this model's configuration to server defaults?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmReset({ show: false, id: null })}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                 Cancel
               </button>
-              <button className="aim-btn aim-btn-warning" onClick={performResetConfirm}>
+              <button onClick={confirmReset_}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors">
                 Reset
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );
-};
-
-export default AIModelManagement;
+}
