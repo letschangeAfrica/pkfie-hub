@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../services/api';
 import { marked } from 'marked';
 import PKFLogo from '../../components/PKFLogo';
 import {
   FiChevronRight, FiChevronDown, FiSearch,
-  FiDownload, FiZoomIn, FiZoomOut, FiMaximize2,
-  FiFileText, FiBookOpen, FiUsers, FiMonitor, FiClock,
+  FiDownload, FiZoomIn, FiZoomOut, FiMaximize2, FiMinimize2,
+  FiFileText, FiBookOpen, FiUsers, FiClock, FiMenu, FiX,
 } from 'react-icons/fi';
 
-/* ── Configure marked for clean output ── */
 marked.setOptions({ breaks: true, gfm: true });
 
 const CATEGORIES = [
@@ -32,13 +31,10 @@ const CATEGORIES = [
       { id: 'resources', label: 'Student Resources',      ref: 'SL-2024-02', date: 'October 1, 2024' },
     ],
   },
-  {
-    id: 'it-facilities',
-    label: 'IT & Facilities',
-    icon: FiMonitor,
-    docs: [],
-  },
 ];
+
+const TOTAL_DOCS = CATEGORIES.reduce((sum, c) => sum + c.docs.length, 0);
+const ALL_DOCS   = CATEGORIES.flatMap(c => c.docs);
 
 const ZOOM = [75, 100, 125, 150];
 
@@ -68,15 +64,28 @@ const AdinkraWatermark = ({ dark }) => (
 );
 
 export default function Handbook() {
-  const [openCats, setOpenCats]   = useState({ 'academic-policies': true });
-  const [activeDoc, setActiveDoc] = useState(CATEGORIES[0].docs[1]);
-  const [cache, setCache]         = useState({});
-  const [loading, setLoading]     = useState(false);
-  const [zoomIdx, setZoomIdx]     = useState(1);
-  const [search, setSearch]       = useState('');
-  const [dark, setDark]           = useState(() =>
+  const [openCats,      setOpenCats]      = useState({ 'academic-policies': true });
+  const [activeDoc,     setActiveDoc]     = useState(() => {
+    const savedId = localStorage.getItem('handbook_last_doc');
+    if (savedId) {
+      const found = ALL_DOCS.find(d => d.id === savedId);
+      if (found) return found;
+    }
+    return CATEGORIES[0].docs[1];
+  });
+  const [cache,         setCache]         = useState({});
+  const [loading,       setLoading]       = useState(false);
+  const [zoomIdx,       setZoomIdx]       = useState(1);
+  const [search,        setSearch]        = useState('');
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isFullscreen,  setIsFullscreen]  = useState(false);
+  const [showSidebar,   setShowSidebar]   = useState(true);
+  const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains('dark')
   );
+
+  const handbookRef = useRef(null);
+  const viewerRef   = useRef(null);
 
   /* sync dark state with document class */
   useEffect(() => {
@@ -87,6 +96,7 @@ export default function Handbook() {
     return () => obs.disconnect();
   }, []);
 
+  /* fetch document content */
   useEffect(() => {
     if (!activeDoc || cache[activeDoc.id] !== undefined) return;
     setLoading(true);
@@ -95,6 +105,74 @@ export default function Handbook() {
       .catch(()  => setCache(p => ({ ...p, [activeDoc.id]: null  })))
       .finally(() => setLoading(false));
   }, [activeDoc, cache]);
+
+  /* persist last-read doc */
+  useEffect(() => {
+    if (activeDoc?.id) localStorage.setItem('handbook_last_doc', activeDoc.id);
+  }, [activeDoc]);
+
+  /* auto-expand categories matching search */
+  useEffect(() => {
+    if (!search) return;
+    const q = search.toLowerCase();
+    const updates = {};
+    CATEGORIES.forEach(cat => {
+      if (cat.docs.some(d => d.label.toLowerCase().includes(q))) {
+        updates[cat.id] = true;
+      }
+    });
+    if (Object.keys(updates).length) {
+      setOpenCats(prev => ({ ...prev, ...updates }));
+    }
+  }, [search]);
+
+  /* fullscreen change listener */
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  /* keyboard navigation: arrow up/down across docs */
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const idx = ALL_DOCS.findIndex(d => d.id === activeDoc?.id);
+      if (e.key === 'ArrowDown' && idx < ALL_DOCS.length - 1) {
+        e.preventDefault();
+        const next = ALL_DOCS[idx + 1];
+        setActiveDoc(next);
+        const cat = CATEGORIES.find(c => c.docs.some(d => d.id === next.id));
+        if (cat) setOpenCats(p => ({ ...p, [cat.id]: true }));
+      } else if (e.key === 'ArrowUp' && idx > 0) {
+        e.preventDefault();
+        const prev = ALL_DOCS[idx - 1];
+        setActiveDoc(prev);
+        const cat = CATEGORIES.find(c => c.docs.some(d => d.id === prev.id));
+        if (cat) setOpenCats(p => ({ ...p, [cat.id]: true }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeDoc]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      handbookRef.current?.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  }, []);
+
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  const handleScroll = useCallback((e) => {
+    const el = e.currentTarget;
+    const max = el.scrollHeight - el.clientHeight;
+    setScrollProgress(max > 0 ? Math.round((el.scrollTop / max) * 100) : 0);
+  }, []);
 
   const zoom      = ZOOM[zoomIdx];
   const docContent = cache[activeDoc?.id];
@@ -125,8 +203,10 @@ export default function Handbook() {
   const inputCls= dark
     ? 'bg-navy-800 border-navy-700/50 text-white placeholder-navy-500 focus:border-gold/40'
     : 'bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-gold/50';
+  const iconBtn = `p-1.5 rounded-lg transition-colors ${sub} ${
+    dark ? 'hover:text-white hover:bg-navy-700/50' : 'hover:text-slate-900 hover:bg-slate-100'
+  }`;
 
-  /* prose classes applied to dangerouslySetInnerHTML content */
   const proseCls = dark
     ? [
         'text-navy-200 text-sm leading-relaxed',
@@ -176,21 +256,32 @@ export default function Handbook() {
       ].join(' ');
 
   return (
-    <div className={`flex flex-col h-full ${page} overflow-hidden`}>
+    <div ref={handbookRef} className={`flex flex-col h-full ${page} overflow-hidden`}>
 
       {/* ── Page header ───────────────────────────────────── */}
-      <div className={`flex items-center justify-between px-6 py-4 border-b flex-shrink-0 ${header}`}>
-        <div>
-          <h1 className={`text-xl font-black tracking-tight ${txt}`}>Digital Handbook</h1>
-          <p className={`text-[11px] mt-0.5 font-medium ${sub}`}>
-            PKFokam Institute of Excellence — Official Documents
-          </p>
+      <div className={`flex items-center justify-between px-4 sm:px-6 py-4 border-b flex-shrink-0 gap-3 ${header}`}>
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Mobile sidebar toggle */}
+          <button
+            onClick={() => setShowSidebar(v => !v)}
+            aria-label={showSidebar ? 'Hide document list' : 'Show document list'}
+            className={`md:hidden flex-shrink-0 ${iconBtn}`}
+          >
+            {showSidebar ? <FiX size={16} /> : <FiMenu size={16} />}
+          </button>
+          <div className="min-w-0">
+            <h1 className={`text-xl font-black tracking-tight ${txt}`}>Digital Handbook</h1>
+            <p className={`text-[11px] mt-0.5 font-medium ${sub} hidden sm:block`}>
+              PKFokam Institute of Excellence — Official Documents
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-5">
-          <div className={`flex items-center gap-3 text-xs ${sub}`}>
+
+        <div className="flex items-center gap-3 sm:gap-5 flex-shrink-0">
+          <div className={`hidden sm:flex items-center gap-3 text-xs ${sub}`}>
             <span className="flex items-center gap-1.5">
               <FiFileText size={12} className="text-gold" aria-hidden="true" />
-              <strong className={`font-black ${txt}`}>128</strong> Documents
+              <strong className={`font-black ${txt}`}>{TOTAL_DOCS}</strong> Documents
             </span>
             <span className={dark ? 'text-navy-700' : 'text-slate-300'}>·</span>
             <span className="flex items-center gap-1.5">
@@ -208,9 +299,9 @@ export default function Handbook() {
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search handbook documents..."
+              placeholder="Search documents…"
               aria-label="Search handbook documents"
-              className={`pl-8 pr-8 py-2 w-64 border rounded-xl text-sm
+              className={`pl-8 pr-3 py-2 w-40 sm:w-64 border rounded-xl text-sm
                 focus:outline-none focus:ring-1 focus:ring-gold/25 transition-all ${inputCls}`}
             />
           </div>
@@ -223,7 +314,11 @@ export default function Handbook() {
         {/* Document tree */}
         <nav
           aria-label="Document categories"
-          className={`w-56 flex-shrink-0 border-r overflow-y-auto py-2 scrollbar-thin ${sidebar}`}
+          className={[
+            'flex-shrink-0 border-r overflow-y-auto py-2 scrollbar-thin transition-all duration-300',
+            sidebar,
+            showSidebar ? 'w-56' : 'w-0 border-r-0 overflow-hidden py-0',
+          ].join(' ')}
         >
           {filtered.map(cat => (
             <div key={cat.id}>
@@ -285,77 +380,104 @@ export default function Handbook() {
         </nav>
 
         {/* Document viewer */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
           {/* Viewer toolbar */}
-          <div className={`flex items-center justify-between px-5 py-2.5 border-b
-            backdrop-blur-sm flex-shrink-0 ${toolbar}`}>
+          <div className={`flex flex-col border-b flex-shrink-0 ${toolbar}`}>
+            <div className="flex items-center justify-between px-5 py-2.5">
 
-            {/* Breadcrumb */}
-            <nav aria-label="Document breadcrumb" className="flex items-center gap-1.5 text-xs">
-              {activeCat && (
-                <>
-                  <span className={`font-semibold ${sub}`}>{activeCat.label}</span>
-                  <FiChevronRight size={11} className={sub} aria-hidden="true" />
-                </>
-              )}
-              <span className="text-gold font-bold">{activeDoc?.label}</span>
-            </nav>
+              {/* Breadcrumb */}
+              <nav aria-label="Document breadcrumb" className="flex items-center gap-1.5 text-xs min-w-0">
+                {/* Show sidebar toggle on desktop too (collapsed mode) */}
+                {!showSidebar && (
+                  <button
+                    onClick={() => setShowSidebar(true)}
+                    aria-label="Show document list"
+                    className={`mr-1 hidden md:block ${iconBtn}`}
+                  >
+                    <FiMenu size={14} />
+                  </button>
+                )}
+                {activeCat && (
+                  <>
+                    <span className={`font-semibold truncate ${sub}`}>{activeCat.label}</span>
+                    <FiChevronRight size={11} className={`flex-shrink-0 ${sub}`} aria-hidden="true" />
+                  </>
+                )}
+                <span className="text-gold font-bold truncate">{activeDoc?.label}</span>
+              </nav>
 
-            {/* Controls */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
-                disabled={zoomIdx === 0}
-                aria-label="Zoom out"
-                className={`p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${sub}
-                  ${dark ? 'hover:text-white hover:bg-navy-700/50' : 'hover:text-slate-900 hover:bg-slate-100'}`}
-              >
-                <FiZoomOut size={14} aria-hidden="true" />
-              </button>
-              <span className={`text-xs font-bold w-10 text-center tabular-nums select-none ${sub}`}>
-                {zoom}%
-              </span>
-              <button
-                onClick={() => setZoomIdx(i => Math.min(ZOOM.length - 1, i + 1))}
-                disabled={zoomIdx === ZOOM.length - 1}
-                aria-label="Zoom in"
-                className={`p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${sub}
-                  ${dark ? 'hover:text-white hover:bg-navy-700/50' : 'hover:text-slate-900 hover:bg-slate-100'}`}
-              >
-                <FiZoomIn size={14} aria-hidden="true" />
-              </button>
-              <div className={`w-px h-4 mx-1.5 ${dark ? 'bg-navy-700/80' : 'bg-slate-200'}`} aria-hidden="true" />
-              <button
-                aria-label="Fullscreen"
-                className={`p-1.5 rounded-lg transition-colors ${sub}
-                  ${dark ? 'hover:text-white hover:bg-navy-700/50' : 'hover:text-slate-900 hover:bg-slate-100'}`}
-              >
-                <FiMaximize2 size={14} aria-hidden="true" />
-              </button>
-              <button
-                aria-label="Download PDF"
-                className="ml-2 flex items-center gap-2 px-4 py-1.5 rounded-xl
-                  text-[13px] font-black text-navy-900 transition-all hover:-translate-y-px
-                  active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-                style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFEE55 50%, #FFD700 100%)' }}
-              >
-                <FiDownload size={14} aria-hidden="true" />
-                Download PDF
-              </button>
+              {/* Controls */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
+                  disabled={zoomIdx === 0}
+                  aria-label="Zoom out"
+                  className={`${iconBtn} disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  <FiZoomOut size={14} aria-hidden="true" />
+                </button>
+                <span className={`text-xs font-bold w-10 text-center tabular-nums select-none ${sub}`}>
+                  {zoom}%
+                </span>
+                <button
+                  onClick={() => setZoomIdx(i => Math.min(ZOOM.length - 1, i + 1))}
+                  disabled={zoomIdx === ZOOM.length - 1}
+                  aria-label="Zoom in"
+                  className={`${iconBtn} disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  <FiZoomIn size={14} aria-hidden="true" />
+                </button>
+                <div className={`w-px h-4 mx-1.5 ${dark ? 'bg-navy-700/80' : 'bg-slate-200'}`} aria-hidden="true" />
+                <button
+                  onClick={toggleFullscreen}
+                  aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                  className={iconBtn}
+                >
+                  {isFullscreen
+                    ? <FiMinimize2 size={14} aria-hidden="true" />
+                    : <FiMaximize2 size={14} aria-hidden="true" />
+                  }
+                </button>
+                <button
+                  onClick={handlePrint}
+                  aria-label="Print / Save as PDF"
+                  className="ml-2 flex items-center gap-2 px-4 py-1.5 rounded-xl
+                    text-[13px] font-black text-navy-900 transition-all hover:-translate-y-px
+                    active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                  style={{ background: 'linear-gradient(135deg, #FFD700 0%, #FFEE55 50%, #FFD700 100%)' }}
+                >
+                  <FiDownload size={14} aria-hidden="true" />
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Reading progress bar */}
+            <div
+              role="progressbar"
+              aria-label="Reading progress"
+              aria-valuenow={scrollProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className={`h-0.5 ${dark ? 'bg-navy-700/40' : 'bg-slate-100'}`}
+            >
+              <div
+                className="h-full bg-gold transition-all duration-150"
+                style={{ width: `${scrollProgress}%` }}
+              />
             </div>
           </div>
 
           {/* Scrollable document area */}
-          <div className={`flex-1 overflow-auto p-8 ${dark ? 'bg-navy-950' : 'bg-slate-100'}`}>
-            <div
-              style={{
-                transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top center',
-                transition: 'transform 0.2s ease',
-                marginBottom: zoom > 100 ? `${(zoom - 100) * 6}px` : 0,
-              }}
-            >
+          <div
+            ref={viewerRef}
+            onScroll={handleScroll}
+            className={`flex-1 overflow-auto p-8 ${dark ? 'bg-navy-950' : 'bg-slate-100'}`}
+          >
+            {/* CSS zoom: correctly resizes layout box so scroll works at all zoom levels */}
+            <div style={{ zoom: zoom / 100 }}>
               {loading ? (
                 <div className="max-w-3xl mx-auto space-y-4 pt-4">
                   <Skeleton className="h-8 w-1/2" />
@@ -444,8 +566,8 @@ export default function Handbook() {
                       .sort((a, b) => a.order - b.order)
                       .map((table, i) => {
                         const sorted = [...(table.rows || [])].sort((a, b) => a.order - b.order);
-                        const header = sorted[0];
-                        const rows   = sorted.slice(1);
+                        const headerRow = sorted[0];
+                        const rows      = sorted.slice(1);
                         return (
                           <div key={i} className="mb-10">
                             {table.title && (
@@ -455,15 +577,14 @@ export default function Handbook() {
                             )}
                             <div className={`overflow-x-auto rounded-xl border ${dark ? 'border-navy-700/40' : 'border-slate-200'}`}>
                               <table className="w-full text-sm border-collapse">
-                                {header && (
+                                {headerRow && (
                                   <thead>
                                     <tr className={`border-b ${tableHd}`}>
-                                      {header.values.map((cell, k) => (
+                                      {headerRow.values.map((cell, k) => (
                                         <th
                                           key={k}
                                           scope="col"
-                                          className={`px-5 py-3 text-left text-[11px]
-                                            font-black tracking-widest uppercase text-gold`}
+                                          className="px-5 py-3 text-left text-[11px] font-black tracking-widest uppercase text-gold"
                                         >
                                           {cell}
                                         </th>
@@ -524,6 +645,7 @@ export default function Handbook() {
                     <FiBookOpen size={24} className={dark ? 'text-navy-500' : 'text-slate-400'} aria-hidden="true" />
                   </div>
                   <p className={`text-sm ${sub}`}>Select a document from the panel to view its contents</p>
+                  <p className={`text-xs mt-1 opacity-60 ${sub}`}>Use ↑↓ arrow keys to navigate between documents</p>
                 </div>
               )}
             </div>
