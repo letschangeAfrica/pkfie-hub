@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   FiCalendar, FiSearch, FiPlus, FiEdit2, FiTrash2,
   FiEye, FiEyeOff, FiX,
 } from 'react-icons/fi';
 
-const BASE_URL  = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const PAGE_SIZE = 50;
 
 const TYPE_COLOR = {
@@ -58,10 +57,7 @@ export default function EventManagement() {
 
   const fetchEvents = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${BASE_URL}/api/events/?page_size=${PAGE_SIZE}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/events/?page_size=${PAGE_SIZE}`);
       setEvents(
         Array.isArray(res.data.results) ? res.data.results :
         Array.isArray(res.data)         ? res.data : []
@@ -92,20 +88,15 @@ export default function EventManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
     const payload = {
       ...formData,
       max_attendees: formData.max_attendees === '' ? null : Number(formData.max_attendees),
     };
     try {
       if (editingEvent) {
-        await axios.put(`${BASE_URL}/api/events/${editingEvent.id}/`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.put(`/events/${editingEvent.id}/`, payload);
       } else {
-        await axios.post(`${BASE_URL}/api/events/`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.post('/events/', payload);
       }
       closeForm();
       fetchEvents();
@@ -118,9 +109,8 @@ export default function EventManagement() {
   const confirmDeleteEvent = async () => {
     const id = confirmDelete.id;
     setConfirmDelete({ show: false, id: null });
-    const token = localStorage.getItem('token');
     try {
-      await axios.delete(`${BASE_URL}/api/events/${id}/`, { headers: { Authorization: `Bearer ${token}` } });
+      await api.delete(`/events/${id}/`);
       fetchEvents();
     } catch (err) {
       alert('Error deleting event:\n' + (err?.response?.data?.detail || err.message));
@@ -130,11 +120,8 @@ export default function EventManagement() {
   const confirmToggleStatus = async () => {
     const ev = confirmToggle.event;
     setConfirmToggle({ show: false, event: null });
-    const token = localStorage.getItem('token');
     try {
-      await axios.patch(`${BASE_URL}/api/events/${ev.id}/`, { is_active: !ev.is_active }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.patch(`/events/${ev.id}/`, { is_active: !ev.is_active });
       fetchEvents();
     } catch (err) {
       alert('Error updating status:\n' + (err?.response?.data?.detail || err.message));

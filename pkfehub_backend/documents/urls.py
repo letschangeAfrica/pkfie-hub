@@ -16,5 +16,5 @@ router.register(r"document-chunks", DocumentChunkViewSet, basename="document-chu
 router.register(r"document-views", DocumentViewViewSet, basename="document-view")
 
 urlpatterns = [
-    path("api/", include(router.urls)),
+    path("", include(router.urls)),
 ]

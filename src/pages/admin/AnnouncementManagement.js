@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   FiBell, FiSearch, FiPlus, FiEdit2, FiTrash2,
   FiEye, FiEyeOff, FiUsers, FiX,
 } from 'react-icons/fi';
 
-const BASE_URL  = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const PAGE_SIZE = 50;
 
 const PRIORITY_COLOR = {
@@ -65,10 +64,7 @@ export default function AnnouncementManagement() {
 
   const fetchAnnouncements = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${BASE_URL}/api/announcements/?page_size=${PAGE_SIZE}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/announcements/?page_size=${PAGE_SIZE}`);
       setAnnouncements(
         Array.isArray(res.data.results) ? res.data.results :
         Array.isArray(res.data)         ? res.data : []
@@ -98,7 +94,6 @@ export default function AnnouncementManagement() {
 
   const handleSave = async () => {
     setSaving(true);
-    const token = localStorage.getItem('token');
     const payload = {
       ...form,
       start_date: toDateTime(form.start_date),
@@ -106,13 +101,9 @@ export default function AnnouncementManagement() {
     };
     try {
       if (editingAnnouncement) {
-        await axios.put(`${BASE_URL}/api/announcements/${editingAnnouncement.id}/`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.put(`/announcements/${editingAnnouncement.id}/`, payload);
       } else {
-        await axios.post(`${BASE_URL}/api/announcements/`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await api.post('/announcements/', payload);
       }
       setShowForm(false);
       setEditingAnnouncement(null);
@@ -128,14 +119,10 @@ export default function AnnouncementManagement() {
   const confirmToggleStatus = async () => {
     const id = confirmToggle.id;
     setConfirmToggle({ show: false, id: null });
-    const token = localStorage.getItem('token');
     const a = announcements.find(x => x.id === id);
     if (!a) return;
     try {
-      await axios.patch(`${BASE_URL}/api/announcements/${id}/`,
-        { status: a.status === 'active' ? 'inactive' : 'active' },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.patch(`/announcements/${id}/`, { status: a.status === 'active' ? 'inactive' : 'active' });
       fetchAnnouncements();
     } catch (err) {
       alert('Error updating status:\n' + (err?.response?.data?.detail || err.message));
@@ -145,11 +132,8 @@ export default function AnnouncementManagement() {
   const confirmDeleteAnnouncement = async () => {
     const id = confirmDelete.id;
     setConfirmDelete({ show: false, id: null });
-    const token = localStorage.getItem('token');
     try {
-      await axios.delete(`${BASE_URL}/api/announcements/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/announcements/${id}/`);
       fetchAnnouncements();
     } catch (err) {
       alert('Error deleting:\n' + (err?.response?.data?.detail || err.message));
@@ -157,11 +141,8 @@ export default function AnnouncementManagement() {
   };
 
   const fetchViewers = async (id) => {
-    const token = localStorage.getItem('token');
     try {
-      const res = await axios.get(`${BASE_URL}/api/announcement-views/?announcement=${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/announcement-views/?announcement=${id}`);
       setViewers(res.data);
       setViewersTarget(announcements.find(a => a.id === id));
       setShowViewers(true);

@@ -1,11 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   FiRefreshCw, FiSearch, FiX, FiCheckCircle,
   FiBell, FiChevronLeft, FiChevronRight, FiExternalLink,
 } from 'react-icons/fi';
-
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const TYPE_COLOR = {
   info:    'bg-sky-500/20 text-sky-400 border-sky-500/30',
@@ -36,17 +34,11 @@ export default function AdminNotifications() {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const authHeader = () => {
-    const t = localStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  };
-
   const fetchNotifications = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`${BASE_URL}/api/notifications/`, {
-        headers: authHeader(),
+      const res = await api.get('/notifications/', {
         params: { ordering: '-created_at', page, page_size: 20, unread: onlyUnread || undefined },
       });
       if (mounted.current) setNotifications(res.data.results ?? res.data ?? []);
@@ -74,9 +66,9 @@ export default function AdminNotifications() {
   const markReadLocal   = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: true  } : n));
   const markUnreadLocal = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: false } : n));
 
-  const markAsRead   = (id) => axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: true  }, { headers: authHeader() }).catch(() => {});
+  const markAsRead   = (id) => api.patch(`/notifications/${id}/`, { read: true  }).catch(() => {});
   const markAsUnread = async (id) => {
-    await axios.patch(`${BASE_URL}/api/notifications/${id}/`, { read: false }, { headers: authHeader() }).catch(() => {});
+    await api.patch(`/notifications/${id}/`, { read: false }).catch(() => {});
     markUnreadLocal(id);
     if (selected?.id === id) setSelected(p => p ? { ...p, read: false } : p);
   };
@@ -85,11 +77,11 @@ export default function AdminNotifications() {
     setBulkLoading(true);
     try {
       try {
-        await axios.post(`${BASE_URL}/api/notifications/mark_all_read/`, {}, { headers: authHeader() });
+        await api.post('/notifications/mark_all_read/', {});
         await fetchNotifications();
       } catch {
         const unread = notifications.filter(n => !n.read);
-        await Promise.all(unread.map(n => axios.patch(`${BASE_URL}/api/notifications/${n.id}/`, { read: true }, { headers: authHeader() }).catch(() => {})));
+        await Promise.all(unread.map(n => api.patch(`/notifications/${n.id}/`, { read: true }).catch(() => {})));
         setNotifications(p => p.map(n => ({ ...n, read: true })));
       }
     } finally { setBulkLoading(false); }
@@ -98,7 +90,7 @@ export default function AdminNotifications() {
   const openDetail = async (id) => {
     setDetailLoading(true); setDetailOpen(true); setSelected(null);
     try {
-      const res = await axios.get(`${BASE_URL}/api/notifications/${id}/`, { headers: authHeader() });
+      const res = await api.get(`/notifications/${id}/`);
       if (mounted.current) setSelected(res.data);
     } catch {
       const fallback = notifications.find(n => n.id === id);

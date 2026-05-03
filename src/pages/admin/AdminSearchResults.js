@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   FiArrowLeft, FiSearch, FiUsers, FiBell, FiCalendar,
 } from 'react-icons/fi';
-
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const Sk = ({ className = '' }) => (
   <div className={`bg-navy-700/60 rounded-xl animate-pulse ${className}`} />
@@ -51,14 +49,12 @@ export default function AdminSearchResults() {
   useEffect(() => {
     if (!query) { setUsers([]); setAnnouncements([]); setEvents([]); return; }
     setLoading(true);
-    const token = localStorage.getItem('token');
-    const hdrs  = { Authorization: `Bearer ${token}` };
-    const q     = encodeURIComponent(query);
+    const q = encodeURIComponent(query);
 
     Promise.all([
-      axios.get(`${BASE_URL}/api/users/?search=${q}`,         { headers: hdrs }),
-      axios.get(`${BASE_URL}/api/announcements/?search=${q}`, { headers: hdrs }),
-      axios.get(`${BASE_URL}/api/events/?search=${q}`,        { headers: hdrs }),
+      api.get(`/users/?search=${q}`),
+      api.get(`/announcements/?search=${q}`),
+      api.get(`/events/?search=${q}`),
     ])
       .then(([u, a, e]) => {
         setUsers(u.data.results         ?? u.data ?? []);
