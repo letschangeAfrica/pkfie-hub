@@ -216,17 +216,22 @@ const FeedbackCard = ({ fb, onDelete, onUpdate }) => {
             )}
             <p className="text-sm text-slate-600 dark:text-navy-300 leading-relaxed">{fb.message}</p>
 
-            {/* Attachment */}
-            {fb.attachment && (
-              <a
-                href={fb.attachment}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-2 text-[11px] text-gold hover:text-gold/80 font-semibold"
-              >
-                <FiPaperclip size={11} />
-                View attachment
-              </a>
+            {/* Attachments */}
+            {fb.attachments?.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {fb.attachments.map(att => (
+                  <a
+                    key={att.id}
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] text-gold hover:text-gold/80 font-semibold"
+                  >
+                    <FiPaperclip size={11} />
+                    {att.file_name || 'View attachment'}
+                  </a>
+                ))}
+              </div>
             )}
           </>
         ) : (

@@ -388,7 +388,10 @@ const Dashboard = () => {
               : events.map(ev => (
                 <button
                   key={ev.id}
-                  onClick={() => navigate('/calendar')}
+                  onClick={() => {
+                    const date = ev.start_time?.slice(0, 10);
+                    navigate(date ? `/calendar?date=${date}` : '/calendar');
+                  }}
                   className="w-full text-left flex items-start gap-3.5 px-5 py-4
                     hover:bg-slate-50 dark:hover:bg-navy-700/40 transition-colors group"
                 >

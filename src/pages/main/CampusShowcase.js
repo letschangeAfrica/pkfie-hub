@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 import {
   FiHeart, FiX, FiChevronLeft, FiChevronRight,
-  FiCamera, FiTrendingUp, FiGrid, FiVideo,
+  FiCamera, FiTrendingUp, FiGrid, FiVideo, FiAlertCircle, FiRefreshCw,
 } from 'react-icons/fi';
-
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:8000/api/gallery/';
 
 const formatDate = (d) => d
   ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -18,12 +16,14 @@ const sortMedia = (arr, by) => {
   return arr;
 };
 
+const LIKED_KEY = 'pkfie_gallery_liked';
+
 /* ── Media thumb (shared) ── */
 const MediaThumb = ({ item, className = '' }) =>
   item.type === 'video' ? (
     <video
       src={item.videoSrc}
-      poster={item.thumbnail}
+      poster={item.thumbnail || undefined}
       className={`w-full h-full object-cover ${className}`}
       muted
       playsInline
@@ -35,47 +35,60 @@ const MediaThumb = ({ item, className = '' }) =>
       alt={item.caption}
       className={`w-full h-full object-cover ${className}`}
       loading="lazy"
+      onError={e => { e.currentTarget.style.display = 'none'; }}
     />
   );
 
 export default function CampusShowcase() {
   const [media,          setMedia]          = useState([]);
   const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState(null);
   const [occasionFilter, setOccasionFilter] = useState('All');
   const [sortBy,         setSortBy]         = useState('liked');
   const [likes,          setLikes]          = useState({});
-  const [liked,          setLiked]          = useState({});
-  const [lightbox,       setLightbox]       = useState({ open: false, idx: 0, items: [] });
+  // Persist liked state across page refreshes
+  const [liked, setLiked] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LIKED_KEY) || '{}'); }
+    catch { return {}; }
+  });
+  const [lightbox, setLightbox] = useState({ open: false, idx: 0, items: [] });
 
   useEffect(() => {
+    try { localStorage.setItem(LIKED_KEY, JSON.stringify(liked)); }
+    catch {}
+  }, [liked]);
+
+  const fetchMedia = useCallback(() => {
     setLoading(true);
-    Promise.all([
-      axios.get(`${API_BASE}media/`),
-      axios.get(`${API_BASE}occasions/`),
-    ]).then(([mRes]) => {
-      const loaded = (mRes.data || []).map(item => ({
-        ...item,
-        type:     item.media_type,
-        id:       item.id ? String(item.id) : Math.random().toString(36).slice(2),
-        src:      item.media_type === 'photo' ? item.file : undefined,
-        videoSrc: item.media_type === 'video' ? item.file : undefined,
-        caption:  item.caption || item.title || '',
-        occasion: item.occasion?.name || 'Other',
-        likes:    item.likes || 0,
-      }));
-      setMedia(loaded);
-      const lk = {}, ld = {};
-      loaded.forEach(m => { lk[m.id] = m.likes; ld[m.id] = false; });
-      setLikes(lk);
-      setLiked(ld);
-    }).finally(() => setLoading(false));
+    setError(null);
+    api.get('/gallery/media/')
+      .then(res => {
+        const loaded = (res.data || []).map(item => ({
+          ...item,
+          type:     item.media_type,
+          id:       item.id ? String(item.id) : Math.random().toString(36).slice(2),
+          src:      item.media_type === 'photo' ? item.file : undefined,
+          videoSrc: item.media_type === 'video' ? item.file : undefined,
+          caption:  item.caption || item.title || '',
+          occasion: item.occasion?.name || 'Other',
+          likes:    item.likes || 0,
+        }));
+        setMedia(loaded);
+        const lk = {};
+        loaded.forEach(m => { lk[m.id] = m.likes; });
+        setLikes(lk);
+      })
+      .catch(() => setError('Could not load media. Check your connection and try again.'))
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchMedia(); }, [fetchMedia]);
 
   const handleLike = (id) => {
     if (liked[id]) return;
     const item = media.find(m => m.id === id);
     if (!item) return;
-    axios.post(`${API_BASE}likes/`, { media: item.id }).catch(() => {});
+    api.post('/gallery/likes/', { media: item.id }).catch(() => {});
     setLikes(p => ({ ...p, [id]: (p[id] || 0) + 1 }));
     setLiked(p => ({ ...p, [id]: true }));
   };
@@ -87,11 +100,18 @@ export default function CampusShowcase() {
     media.filter(m => occasionFilter === 'All' || m.occasion === occasionFilter),
     sortBy,
   );
-  const trending = sortMedia([...media], 'liked').slice(0, 3);
+
+  // Trending: items from the past 7 days ranked by likes; fall back to all-time if fewer than 3
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const recentMedia = media.filter(m => m.date && new Date(m.date) >= weekAgo);
+  const trendingSource = recentMedia.length >= 3 ? recentMedia : media;
+  const trendingLabel  = recentMedia.length >= 3 ? 'Trending This Week' : 'Most Popular';
+  const trending = sortMedia([...trendingSource], 'liked').slice(0, 3);
 
   /* Lightbox */
-  const openLightbox = (idx, items = filtered) =>
-    setLightbox({ open: true, idx, items });
+  const openLightbox = useCallback((idx, items) =>
+    setLightbox({ open: true, idx, items }), []);
   const closeLightbox = useCallback(() =>
     setLightbox({ open: false, idx: 0, items: [] }), []);
   const prevLb = useCallback(() =>
@@ -192,12 +212,12 @@ export default function CampusShowcase() {
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
 
         {/* ── Trending ── */}
-        {trending.length > 0 && (
+        {!error && trending.length > 0 && (
           <section aria-labelledby="trending-heading">
             <div className="flex items-center gap-2 mb-4">
               <FiTrendingUp size={16} className="text-gold" aria-hidden="true" />
               <h2 id="trending-heading" className="text-lg font-black text-slate-900 dark:text-white">
-                Trending This Week
+                {trendingLabel}
               </h2>
             </div>
             <div className="grid sm:grid-cols-3 gap-5">
@@ -205,8 +225,10 @@ export default function CampusShowcase() {
                 <button
                   key={m.id}
                   onClick={() => {
-                    const idx = filtered.findIndex(f => f.id === m.id);
-                    openLightbox(idx > -1 ? idx : 0);
+                    // Always open lightbox with the full media array so navigation
+                    // isn't restricted to the current occasion filter
+                    const idx = media.findIndex(x => x.id === m.id);
+                    openLightbox(idx > -1 ? idx : 0, media);
                   }}
                   className="group relative text-left rounded-2xl overflow-hidden
                     border border-slate-200 dark:border-navy-700/40
@@ -256,9 +278,11 @@ export default function CampusShowcase() {
             <FiGrid size={16} className="text-gold" aria-hidden="true" />
             <h2 id="gallery-heading" className="text-lg font-black text-slate-900 dark:text-white">
               Gallery
-              <span className="ml-2 text-sm font-bold text-slate-400 dark:text-navy-500">
-                ({filtered.length})
-              </span>
+              {!loading && !error && (
+                <span className="ml-2 text-sm font-bold text-slate-400 dark:text-navy-500">
+                  ({filtered.length})
+                </span>
+              )}
             </h2>
           </div>
 
@@ -273,6 +297,20 @@ export default function CampusShowcase() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-20">
+              <FiAlertCircle size={36} className="mx-auto mb-3 text-red-400" aria-hidden="true" />
+              <p className="text-sm font-semibold text-slate-600 dark:text-navy-300 mb-4">{error}</p>
+              <button
+                onClick={fetchMedia}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold
+                  text-navy-900 transition-all hover:-translate-y-px active:translate-y-0"
+                style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55)' }}
+              >
+                <FiRefreshCw size={14} aria-hidden="true" />
+                Try Again
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-slate-400 dark:text-navy-500">
@@ -290,7 +328,7 @@ export default function CampusShowcase() {
                 >
                   {/* Thumb — clickable */}
                   <button
-                    onClick={() => openLightbox(idx)}
+                    onClick={() => openLightbox(idx, filtered)}
                     className="block relative w-full h-44 overflow-hidden focus-visible:ring-2 focus-visible:ring-gold"
                     aria-label={`View ${m.caption}`}
                   >
@@ -357,7 +395,7 @@ export default function CampusShowcase() {
         >
           <div
             ref={lightboxRef}
-            className="relative w-full max-w-4xl animate-scale-in"
+            className="relative w-full max-w-4xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Close */}
@@ -388,7 +426,7 @@ export default function CampusShowcase() {
               {lbItem.type === 'video' ? (
                 <video
                   src={lbItem.videoSrc}
-                  poster={lbItem.thumbnail}
+                  poster={lbItem.thumbnail || undefined}
                   controls autoPlay
                   className="w-full max-h-[75vh] object-contain"
                 />

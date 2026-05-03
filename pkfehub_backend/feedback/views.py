@@ -34,7 +34,16 @@ class FeedbackSubmissionCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        from .models import FeedbackAttachment
+        submission = serializer.save(user=self.request.user)
+        attachment = self.request.FILES.get("attachment")
+        if attachment:
+            FeedbackAttachment.objects.create(
+                feedback=submission,
+                file=attachment,
+                file_name=attachment.name,
+                file_size=attachment.size,
+            )
 
 
 class FeedbackSubmissionListView(generics.ListAPIView):

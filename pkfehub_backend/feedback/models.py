@@ -75,8 +75,8 @@ class FeedbackAttachment(models.Model):
     feedback = models.ForeignKey(
         FeedbackSubmission, on_delete=models.CASCADE, related_name="attachments"
     )
+    file = models.FileField(upload_to="feedback_attachments/", null=True, blank=True)
     file_name = models.CharField(max_length=500)
-    file_path = models.CharField(max_length=1000)
     file_size = models.IntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

@@ -14,9 +14,17 @@ class FeedbackCategorySerializer(serializers.ModelSerializer):
 
 
 class FeedbackAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        if obj.file:
+            return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+        return None
+
     class Meta:
         model = FeedbackAttachment
-        fields = ["id", "file_name", "file_path", "file_size", "uploaded_at"]
+        fields = ["id", "file_name", "url", "file_size", "uploaded_at"]
 
 
 class FeedbackResponseSerializer(serializers.ModelSerializer):
