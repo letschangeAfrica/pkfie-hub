@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
   FiBell, FiSearch, FiPlus, FiEdit2, FiTrash2,
-  FiEye, FiEyeOff, FiUsers, FiX,
+  FiEye, FiEyeOff, FiUsers, FiX, FiAlertCircle,
 } from 'react-icons/fi';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 const PRIORITY_COLOR = {
   urgent: 'bg-red-500/20 text-red-400',
@@ -33,10 +33,10 @@ function ModalOverlay({ children, onClose }) {
   );
 }
 
-function Label({ children }) {
+function Label({ children, required }) {
   return (
     <label className="block text-xs font-bold text-navy-400 mb-1.5 uppercase tracking-wide">
-      {children}
+      {children}{required && <span className="text-red-400 ml-0.5">*</span>}
     </label>
   );
 }
@@ -44,37 +44,54 @@ function Label({ children }) {
 const inputCls = `w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
   text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/50 transition-colors`;
 
+function apiErr(err) {
+  const d = err?.response?.data;
+  if (!d) return err.message;
+  if (typeof d === 'string') return d;
+  if (d.detail) return d.detail;
+  return Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('\n');
+}
+
 export default function AnnouncementManagement() {
-  const [announcements,      setAnnouncements]      = useState([]);
-  const [showForm,           setShowForm]           = useState(false);
-  const [editingAnnouncement,setEditingAnnouncement]= useState(null);
-  const [form,               setForm]               = useState(EMPTY_FORM);
-  const [saving,             setSaving]             = useState(false);
-  const [searchQuery,        setSearchQuery]        = useState('');
-  const [priorityFilter,     setPriorityFilter]     = useState('');
-  const [statusFilter,       setStatusFilter]       = useState('');
-  const [sortOrder,          setSortOrder]          = useState('newest');
-  const [confirmDelete,      setConfirmDelete]      = useState({ show: false, id: null });
-  const [confirmToggle,      setConfirmToggle]      = useState({ show: false, id: null });
-  const [showViewers,        setShowViewers]        = useState(false);
-  const [viewers,            setViewers]            = useState([]);
-  const [viewersTarget,      setViewersTarget]      = useState(null);
+  const [announcements,       setAnnouncements]       = useState([]);
+  const [loading,             setLoading]             = useState(true);
+  const [showForm,            setShowForm]            = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
+  const [form,                setForm]                = useState(EMPTY_FORM);
+  const [saving,              setSaving]              = useState(false);
+  const [formError,           setFormError]           = useState('');
+  const [searchQuery,         setSearchQuery]         = useState('');
+  const [priorityFilter,      setPriorityFilter]      = useState('');
+  const [statusFilter,        setStatusFilter]        = useState('');
+  const [sortOrder,           setSortOrder]           = useState('newest');
+  const [confirmDelete,       setConfirmDelete]       = useState({ show: false, id: null });
+  const [confirmToggle,       setConfirmToggle]       = useState({ show: false, id: null });
+  const [showViewers,         setShowViewers]         = useState(false);
+  const [viewers,             setViewers]             = useState([]);
+  const [viewersTarget,       setViewersTarget]       = useState(null);
+  const [viewersLoading,      setViewersLoading]      = useState(false);
 
-  useEffect(() => { fetchAnnouncements(); }, []);
-
-  const fetchAnnouncements = async () => {
+  const fetchAnnouncements = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await api.get(`/announcements/?page_size=${PAGE_SIZE}`);
+      const res = await api.get(`/announcements/?page_size=${PAGE_SIZE}&status=all`);
       setAnnouncements(
         Array.isArray(res.data.results) ? res.data.results :
         Array.isArray(res.data)         ? res.data : []
       );
-    } catch { setAnnouncements([]); }
-  };
+    } catch {
+      setAnnouncements([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
 
   const openCreate = () => {
     setEditingAnnouncement(null);
     setForm(EMPTY_FORM);
+    setFormError('');
     setShowForm(true);
   };
 
@@ -87,13 +104,22 @@ export default function AnnouncementManagement() {
       start_date: a.start_date ? a.start_date.slice(0, 10) : '',
       end_date:   a.end_date   ? a.end_date.slice(0, 10)   : '',
     });
+    setFormError('');
     setShowForm(true);
   };
 
   const toDateTime = (s) => (!s ? null : s.length === 10 ? s + 'T00:00:00' : s);
 
   const handleSave = async () => {
+    if (!form.title.trim()) { setFormError('Title is required.'); return; }
+    if (!form.content.trim()) { setFormError('Content is required.'); return; }
+    if (!form.start_date) { setFormError('Start date is required.'); return; }
+    if (form.end_date && form.end_date < form.start_date) {
+      setFormError('End date cannot be before start date.');
+      return;
+    }
     setSaving(true);
+    setFormError('');
     const payload = {
       ...form,
       start_date: toDateTime(form.start_date),
@@ -110,10 +136,10 @@ export default function AnnouncementManagement() {
       setForm(EMPTY_FORM);
       fetchAnnouncements();
     } catch (err) {
-      alert('Error saving announcement:\n' +
-        (err?.response?.data?.detail || JSON.stringify(err?.response?.data) || err.message));
+      setFormError(apiErr(err));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const confirmToggleStatus = async () => {
@@ -124,9 +150,7 @@ export default function AnnouncementManagement() {
     try {
       await api.patch(`/announcements/${id}/`, { status: a.status === 'active' ? 'inactive' : 'active' });
       fetchAnnouncements();
-    } catch (err) {
-      alert('Error updating status:\n' + (err?.response?.data?.detail || err.message));
-    }
+    } catch { /* silent — list will refresh on next load */ }
   };
 
   const confirmDeleteAnnouncement = async () => {
@@ -135,18 +159,22 @@ export default function AnnouncementManagement() {
     try {
       await api.delete(`/announcements/${id}/`);
       fetchAnnouncements();
-    } catch (err) {
-      alert('Error deleting:\n' + (err?.response?.data?.detail || err.message));
-    }
+    } catch { /* silent */ }
   };
 
   const fetchViewers = async (id) => {
+    setViewersLoading(true);
+    setViewers([]);
+    setViewersTarget(announcements.find(a => a.id === id));
+    setShowViewers(true);
     try {
       const res = await api.get(`/announcement-views/?announcement=${id}`);
-      setViewers(res.data);
-      setViewersTarget(announcements.find(a => a.id === id));
-      setShowViewers(true);
-    } catch { alert('Failed to fetch viewers'); }
+      setViewers(Array.isArray(res.data.results) ? res.data.results : Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setViewers([]);
+    } finally {
+      setViewersLoading(false);
+    }
   };
 
   const formatDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
@@ -174,9 +202,15 @@ export default function AnnouncementManagement() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Announcement Management</h1>
-        <p className="text-sm text-navy-400 mt-1">Create and manage announcements for your institution</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-white tracking-tight">Announcement Management</h1>
+          <p className="text-sm text-navy-400 mt-1">Create and manage announcements for your institution</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-2xl font-black text-white">{announcements.length}</p>
+          <p className="text-xs text-navy-500">Total</p>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -222,20 +256,25 @@ export default function AnnouncementManagement() {
 
       {/* Table */}
       <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="py-20 text-center">
+            <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-navy-500">Loading announcements…</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-navy-700/60 flex items-center justify-center mx-auto mb-4">
               <FiBell size={24} className="text-navy-500" aria-hidden="true" />
             </div>
             <p className="text-white font-bold mb-1">No announcements found</p>
-            <p className="text-sm text-navy-500">Try adjusting your filters.</p>
+            <p className="text-sm text-navy-500">Try adjusting your filters or create a new announcement.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-navy-700/40">
-                  {['Title', 'Priority', 'Start Date', 'End Date', 'Status', 'Actions'].map(h => (
+                  {['Title', 'Priority', 'Start Date', 'End Date', 'Status', 'Views', 'Actions'].map(h => (
                     <th key={h} className="px-5 py-3.5 text-left text-[11px] font-black uppercase tracking-wide text-navy-500">
                       {h}
                     </th>
@@ -260,6 +299,9 @@ export default function AnnouncementManagement() {
                       <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase ${STATUS_COLOR[a.status] || 'bg-navy-700 text-navy-400'}`}>
                         {a.status}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-navy-400 text-xs text-center">
+                      {a.views?.length ?? 0}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5">
@@ -289,6 +331,9 @@ export default function AnnouncementManagement() {
                 ))}
               </tbody>
             </table>
+            <div className="px-5 py-3 border-t border-navy-700/30 text-xs text-navy-500">
+              Showing {filtered.length} of {announcements.length} announcement{announcements.length !== 1 ? 's' : ''}
+            </div>
           </div>
         )}
       </div>
@@ -298,7 +343,7 @@ export default function AnnouncementManagement() {
         <ModalOverlay onClose={() => setConfirmDelete({ show: false, id: null })}>
           <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
             <h3 className="text-lg font-black text-white mb-2">Confirm Deletion</h3>
-            <p className="text-sm text-navy-400 mb-6">Are you sure you want to delete this announcement?</p>
+            <p className="text-sm text-navy-400 mb-6">This announcement will be permanently deleted and cannot be recovered.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmDelete({ show: false, id: null })}
                 className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
@@ -341,25 +386,36 @@ export default function AnnouncementManagement() {
         <ModalOverlay onClose={() => setShowViewers(false)}>
           <div className="bg-navy-800 rounded-2xl border border-navy-700/40 w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700/40">
-              <h3 className="text-base font-black text-white">Viewers — {viewersTarget?.title}</h3>
+              <div>
+                <h3 className="text-base font-black text-white">Viewers</h3>
+                <p className="text-xs text-navy-500 mt-0.5 truncate max-w-[280px]">{viewersTarget?.title}</p>
+              </div>
               <button onClick={() => setShowViewers(false)}
                 className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-navy-700 text-navy-400 hover:text-white transition-colors">
                 <FiX size={15} aria-hidden="true" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 p-6">
-              {viewers.length === 0 ? (
+              {viewersLoading ? (
+                <div className="text-center py-8">
+                  <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-xs text-navy-500">Loading…</p>
+                </div>
+              ) : viewers.length === 0 ? (
                 <p className="text-sm text-navy-500 text-center py-8">No users have viewed this announcement yet.</p>
               ) : (
-                <ul className="space-y-2">
-                  {viewers.map((v, i) => (
-                    <li key={v.id || i}
-                      className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-navy-700/40 text-sm">
-                      <span className="font-semibold text-white">{v.user_full_name || v.user_email || v.user}</span>
-                      <span className="text-xs text-navy-500">{new Date(v.viewed_at).toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <p className="text-xs text-navy-500 mb-3">{viewers.length} view{viewers.length !== 1 ? 's' : ''}</p>
+                  <ul className="space-y-2">
+                    {viewers.map((v, i) => (
+                      <li key={v.id || i}
+                        className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-navy-700/40 text-sm">
+                        <span className="font-semibold text-white">{v.user_full_name || v.user_email || v.user}</span>
+                        <span className="text-xs text-navy-500">{new Date(v.viewed_at).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           </div>
@@ -381,14 +437,21 @@ export default function AnnouncementManagement() {
             </div>
 
             <div className="p-6 space-y-4">
+              {formError && (
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <p className="whitespace-pre-line">{formError}</p>
+                </div>
+              )}
+
               <div>
-                <Label>Title</Label>
+                <Label required>Title</Label>
                 <input type="text" className={inputCls} placeholder="Enter announcement title"
                   value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
               </div>
 
               <div>
-                <Label>Content</Label>
+                <Label required>Content</Label>
                 <textarea rows={5} className={inputCls + ' resize-none'} placeholder="Enter announcement content"
                   value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
               </div>
@@ -405,13 +468,13 @@ export default function AnnouncementManagement() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Start Date</Label>
+                  <Label required>Start Date</Label>
                   <input type="date" className={inputCls}
                     value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
                 </div>
                 <div>
                   <Label>End Date</Label>
-                  <input type="date" className={inputCls}
+                  <input type="date" className={inputCls} min={form.start_date || undefined}
                     value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
                 </div>
               </div>
@@ -423,7 +486,7 @@ export default function AnnouncementManagement() {
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!form.title || !form.content || saving}
+                  disabled={saving}
                   className="px-5 py-2 rounded-xl text-sm font-bold text-navy-900 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
                 >

@@ -1,22 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
   FiCalendar, FiSearch, FiPlus, FiEdit2, FiTrash2,
-  FiEye, FiEyeOff, FiX,
+  FiEye, FiEyeOff, FiX, FiAlertCircle, FiLink, FiUsers,
 } from 'react-icons/fi';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 const TYPE_COLOR = {
-  academic: 'bg-sky-500/20 text-sky-400',
-  social:   'bg-emerald-500/20 text-emerald-400',
-  career:   'bg-violet-500/20 text-violet-400',
-  workshop: 'bg-amber-500/20 text-amber-400',
+  academic:    'bg-sky-500/20 text-sky-400',
+  social:      'bg-emerald-500/20 text-emerald-400',
+  career:      'bg-violet-500/20 text-violet-400',
+  workshop:    'bg-amber-500/20 text-amber-400',
+  webinar:     'bg-cyan-500/20 text-cyan-400',
+  conference:  'bg-indigo-500/20 text-indigo-400',
+  competition: 'bg-pink-500/20 text-pink-400',
 };
+
+const EVENT_TYPES = [
+  { value: 'academic',    label: 'Academic' },
+  { value: 'social',      label: 'Social' },
+  { value: 'career',      label: 'Career' },
+  { value: 'workshop',    label: 'Workshop' },
+  { value: 'webinar',     label: 'Webinar' },
+  { value: 'conference',  label: 'Conference' },
+  { value: 'competition', label: 'Competition' },
+];
 
 const EMPTY_FORM = {
   title: '', description: '', event_type: 'academic',
-  start_time: '', end_time: '', location: '', organizer: '', max_attendees: '',
+  start_time: '', end_time: '', location: '', organizer: '',
+  max_attendees: '', registration_link: '',
 };
 
 function ModalOverlay({ children, onClose }) {
@@ -30,10 +44,10 @@ function ModalOverlay({ children, onClose }) {
   );
 }
 
-function Label({ children }) {
+function Label({ children, required }) {
   return (
     <label className="block text-xs font-bold text-navy-400 mb-1.5 uppercase tracking-wide">
-      {children}
+      {children}{required && <span className="text-red-400 ml-0.5">*</span>}
     </label>
   );
 }
@@ -41,56 +55,86 @@ function Label({ children }) {
 const inputCls = `w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
   text-white text-sm placeholder-navy-600 focus:outline-none focus:border-gold/50 transition-colors`;
 
+function apiErr(err) {
+  const d = err?.response?.data;
+  if (!d) return err.message;
+  if (typeof d === 'string') return d;
+  if (d.detail) return d.detail;
+  return Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('\n');
+}
+
 export default function EventManagement() {
-  const [events,         setEvents]         = useState([]);
-  const [showForm,       setShowForm]       = useState(false);
-  const [editingEvent,   setEditingEvent]   = useState(null);
-  const [formData,       setFormData]       = useState(EMPTY_FORM);
-  const [searchQuery,    setSearchQuery]    = useState('');
-  const [typeFilter,     setTypeFilter]     = useState('');
-  const [statusFilter,   setStatusFilter]   = useState('');
-  const [sortOrder,      setSortOrder]      = useState('newest');
-  const [confirmDelete,  setConfirmDelete]  = useState({ show: false, id: null });
-  const [confirmToggle,  setConfirmToggle]  = useState({ show: false, event: null });
+  const [events,        setEvents]        = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [showForm,      setShowForm]      = useState(false);
+  const [editingEvent,  setEditingEvent]  = useState(null);
+  const [formData,      setFormData]      = useState(EMPTY_FORM);
+  const [saving,        setSaving]        = useState(false);
+  const [formError,     setFormError]     = useState('');
+  const [searchQuery,   setSearchQuery]   = useState('');
+  const [typeFilter,    setTypeFilter]    = useState('');
+  const [statusFilter,  setStatusFilter]  = useState('');
+  const [sortOrder,     setSortOrder]     = useState('upcoming');
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null });
+  const [confirmToggle, setConfirmToggle] = useState({ show: false, event: null });
 
-  useEffect(() => { fetchEvents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get(`/events/?page_size=${PAGE_SIZE}`);
       setEvents(
         Array.isArray(res.data.results) ? res.data.results :
         Array.isArray(res.data)         ? res.data : []
       );
-    } catch { setEvents([]); }
-  };
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
   const handleInputChange = e => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const openCreate = () => { setEditingEvent(null); setFormData(EMPTY_FORM); setShowForm(true); };
+  const openCreate = () => {
+    setEditingEvent(null);
+    setFormData(EMPTY_FORM);
+    setFormError('');
+    setShowForm(true);
+  };
 
   const openEdit = (ev) => {
     setEditingEvent(ev);
     setFormData({
-      title:         ev.title,
-      description:   ev.description,
-      event_type:    ev.event_type,
-      start_time:    ev.start_time ? ev.start_time.slice(0, 16) : '',
-      end_time:      ev.end_time   ? ev.end_time.slice(0, 16)   : '',
-      location:      ev.location      || '',
-      organizer:     ev.organizer     || '',
-      max_attendees: ev.max_attendees || '',
+      title:             ev.title,
+      description:       ev.description,
+      event_type:        ev.event_type,
+      start_time:        ev.start_time ? ev.start_time.slice(0, 16) : '',
+      end_time:          ev.end_time   ? ev.end_time.slice(0, 16)   : '',
+      location:          ev.location          || '',
+      organizer:         ev.organizer         || '',
+      max_attendees:     ev.max_attendees      || '',
+      registration_link: ev.registration_link || '',
     });
+    setFormError('');
     setShowForm(true);
   };
 
-  const closeForm = () => { setShowForm(false); setEditingEvent(null); setFormData(EMPTY_FORM); };
+  const closeForm = () => { setShowForm(false); setEditingEvent(null); setFormData(EMPTY_FORM); setFormError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.end_time && formData.start_time && formData.end_time <= formData.start_time) {
+      setFormError('End time must be after start time.');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
     const payload = {
       ...formData,
-      max_attendees: formData.max_attendees === '' ? null : Number(formData.max_attendees),
+      max_attendees:     formData.max_attendees === '' ? null : Number(formData.max_attendees),
+      registration_link: formData.registration_link || null,
     };
     try {
       if (editingEvent) {
@@ -101,8 +145,9 @@ export default function EventManagement() {
       closeForm();
       fetchEvents();
     } catch (err) {
-      alert('Error saving event:\n' +
-        (err?.response?.data?.detail || JSON.stringify(err?.response?.data) || err.message));
+      setFormError(apiErr(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -112,9 +157,7 @@ export default function EventManagement() {
     try {
       await api.delete(`/events/${id}/`);
       fetchEvents();
-    } catch (err) {
-      alert('Error deleting event:\n' + (err?.response?.data?.detail || err.message));
-    }
+    } catch { /* silent */ }
   };
 
   const confirmToggleStatus = async () => {
@@ -123,38 +166,58 @@ export default function EventManagement() {
     try {
       await api.patch(`/events/${ev.id}/`, { is_active: !ev.is_active });
       fetchEvents();
-    } catch (err) {
-      alert('Error updating status:\n' + (err?.response?.data?.detail || err.message));
-    }
+    } catch { /* silent */ }
   };
 
-  const formatDate = (s) => s ? new Date(s).toLocaleString() : '—';
+  const formatDate = (s) => s ? new Date(s).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }) : '—';
+
+  const now = new Date();
+  const isUpcoming = (ev) => new Date(ev.start_time) >= now;
+  const isPast     = (ev) => new Date(ev.end_time || ev.start_time) < now;
 
   const filtered = events
     .filter(ev => {
       const q = searchQuery.toLowerCase();
       return (
-        (!q || ev.title?.toLowerCase().includes(q) || ev.description?.toLowerCase().includes(q)) &&
+        (!q || ev.title?.toLowerCase().includes(q) || ev.description?.toLowerCase().includes(q) ||
+               ev.location?.toLowerCase().includes(q) || ev.organizer?.toLowerCase().includes(q)) &&
         (!typeFilter   || ev.event_type === typeFilter) &&
         (!statusFilter || (statusFilter === 'active' ? ev.is_active : !ev.is_active))
       );
     })
-    .sort((a, b) =>
-      sortOrder === 'newest'
-        ? new Date(b.created_at || b.start_time) - new Date(a.created_at || a.start_time)
-        : new Date(a.created_at || a.start_time) - new Date(b.created_at || b.start_time)
-    );
+    .sort((a, b) => {
+      if (sortOrder === 'upcoming') return new Date(a.start_time) - new Date(b.start_time);
+      if (sortOrder === 'newest')   return new Date(b.created_at || b.start_time) - new Date(a.created_at || a.start_time);
+      return new Date(a.created_at || a.start_time) - new Date(b.created_at || b.start_time);
+    });
 
   const selectCls = `px-3 py-2.5 rounded-xl bg-navy-800/60 border border-navy-700/40
     text-white text-sm focus:outline-none focus:border-gold/40 transition-colors`;
+
+  const upcomingCount = events.filter(isUpcoming).length;
 
   return (
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-white tracking-tight">Event Management</h1>
-        <p className="text-sm text-navy-400 mt-1">Create and manage events for your institution</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-white tracking-tight">Event Management</h1>
+          <p className="text-sm text-navy-400 mt-1">Create and manage events for your institution</p>
+        </div>
+        <div className="flex gap-4 shrink-0">
+          <div className="text-right">
+            <p className="text-2xl font-black text-white">{upcomingCount}</p>
+            <p className="text-xs text-navy-500">Upcoming</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-black text-white">{events.length}</p>
+            <p className="text-xs text-navy-500">Total</p>
+          </div>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -172,10 +235,7 @@ export default function EventManagement() {
         </div>
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={selectCls}>
           <option value="">All Types</option>
-          <option value="academic">Academic</option>
-          <option value="social">Social</option>
-          <option value="career">Career</option>
-          <option value="workshop">Workshop</option>
+          {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectCls}>
           <option value="">All Statuses</option>
@@ -183,6 +243,7 @@ export default function EventManagement() {
           <option value="inactive">Inactive</option>
         </select>
         <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} className={selectCls}>
+          <option value="upcoming">By Date (Upcoming)</option>
           <option value="newest">Newest First</option>
           <option value="oldest">Oldest First</option>
         </select>
@@ -199,20 +260,25 @@ export default function EventManagement() {
 
       {/* Table */}
       <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="py-20 text-center">
+            <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-navy-500">Loading events…</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-navy-700/60 flex items-center justify-center mx-auto mb-4">
               <FiCalendar size={24} className="text-navy-500" aria-hidden="true" />
             </div>
             <p className="text-white font-bold mb-1">No events found</p>
-            <p className="text-sm text-navy-500">Try adjusting your filters.</p>
+            <p className="text-sm text-navy-500">Try adjusting your filters or add a new event.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-navy-700/40">
-                  {['Title', 'Type', 'Start', 'End', 'Location', 'Organizer', 'Max', 'Status', 'Actions'].map(h => (
+                  {['Event', 'Type', 'Start', 'Location', 'Attendees', 'Status', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3.5 text-left text-[11px] font-black uppercase tracking-wide text-navy-500">
                       {h}
                     </th>
@@ -221,20 +287,45 @@ export default function EventManagement() {
               </thead>
               <tbody className="divide-y divide-navy-700/30">
                 {filtered.map(ev => (
-                  <tr key={ev.id} className="hover:bg-navy-700/20 transition-colors">
-                    <td className="px-4 py-3.5 font-bold text-white max-w-[160px]">
-                      <p className="truncate">{ev.title}</p>
+                  <tr key={ev.id} className={`hover:bg-navy-700/20 transition-colors ${isPast(ev) ? 'opacity-60' : ''}`}>
+                    <td className="px-4 py-3.5 max-w-[220px]">
+                      <p className="font-bold text-white truncate mb-0.5">{ev.title}</p>
+                      <p className="text-xs text-navy-500 line-clamp-1">{ev.description}</p>
+                      {ev.organizer && (
+                        <p className="text-[11px] text-navy-600 mt-0.5">by {ev.organizer}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase ${TYPE_COLOR[ev.event_type] || 'bg-navy-700 text-navy-400'}`}>
                         {ev.event_type}
                       </span>
+                      {isUpcoming(ev) && (
+                        <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-gold/10 text-gold uppercase">
+                          Soon
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-3.5 text-navy-400 text-xs whitespace-nowrap">{formatDate(ev.start_time)}</td>
-                    <td className="px-4 py-3.5 text-navy-400 text-xs whitespace-nowrap">{formatDate(ev.end_time)}</td>
-                    <td className="px-4 py-3.5 text-navy-300 text-xs">{ev.location || '—'}</td>
-                    <td className="px-4 py-3.5 text-navy-300 text-xs">{ev.organizer || '—'}</td>
-                    <td className="px-4 py-3.5 text-navy-400 text-xs text-center">{ev.max_attendees || '—'}</td>
+                    <td className="px-4 py-3.5 text-navy-400 text-xs whitespace-nowrap">
+                      {formatDate(ev.start_time)}
+                      {ev.end_time && (
+                        <p className="text-navy-600 text-[11px] mt-0.5">→ {formatDate(ev.end_time)}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-navy-300 text-xs max-w-[120px]">
+                      <p className="truncate">{ev.location || '—'}</p>
+                      {ev.registration_link && (
+                        <a href={ev.registration_link} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-sky-400 hover:text-sky-300 mt-0.5 text-[11px]">
+                          <FiLink size={10} /> Register
+                        </a>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1 text-navy-400 text-xs">
+                        <FiUsers size={12} />
+                        <span>{ev.attendees?.length ?? 0}{ev.max_attendees ? `/${ev.max_attendees}` : ''}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3.5">
                       <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase
                         ${ev.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
@@ -265,6 +356,9 @@ export default function EventManagement() {
                 ))}
               </tbody>
             </table>
+            <div className="px-5 py-3 border-t border-navy-700/30 text-xs text-navy-500">
+              Showing {filtered.length} of {events.length} event{events.length !== 1 ? 's' : ''}
+            </div>
           </div>
         )}
       </div>
@@ -274,7 +368,7 @@ export default function EventManagement() {
         <ModalOverlay onClose={() => setConfirmDelete({ show: false, id: null })}>
           <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
             <h3 className="text-lg font-black text-white mb-2">Confirm Deletion</h3>
-            <p className="text-sm text-navy-400 mb-6">Are you sure you want to delete this event?</p>
+            <p className="text-sm text-navy-400 mb-6">This event will be permanently deleted and cannot be recovered.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmDelete({ show: false, id: null })}
                 className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
@@ -327,59 +421,73 @@ export default function EventManagement() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {formError && (
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                  <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <p className="whitespace-pre-line">{formError}</p>
+                </div>
+              )}
+
               <div>
-                <Label>Title</Label>
+                <Label required>Title</Label>
                 <input type="text" name="title" required className={inputCls} placeholder="Event title"
                   value={formData.title} onChange={handleInputChange} />
               </div>
 
               <div>
-                <Label>Description</Label>
-                <textarea name="description" rows={4} required className={inputCls + ' resize-none'}
+                <Label required>Description</Label>
+                <textarea name="description" rows={3} required className={inputCls + ' resize-none'}
                   placeholder="Describe the event…"
                   value={formData.description} onChange={handleInputChange} />
               </div>
 
               <div>
-                <Label>Event Type</Label>
+                <Label required>Event Type</Label>
                 <select name="event_type" required className={inputCls}
                   value={formData.event_type} onChange={handleInputChange}>
-                  <option value="academic">Academic</option>
-                  <option value="social">Social</option>
-                  <option value="career">Career</option>
-                  <option value="workshop">Workshop</option>
+                  {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Start Time</Label>
+                  <Label required>Start Time</Label>
                   <input type="datetime-local" name="start_time" required className={inputCls}
                     value={formData.start_time} onChange={handleInputChange} />
                 </div>
                 <div>
-                  <Label>End Time</Label>
+                  <Label required>End Time</Label>
                   <input type="datetime-local" name="end_time" required className={inputCls}
+                    min={formData.start_time || undefined}
                     value={formData.end_time} onChange={handleInputChange} />
                 </div>
               </div>
 
               <div>
                 <Label>Location</Label>
-                <input type="text" name="location" className={inputCls} placeholder="Room / venue"
+                <input type="text" name="location" className={inputCls} placeholder="Room / building / venue"
                   value={formData.location} onChange={handleInputChange} />
               </div>
 
               <div>
                 <Label>Organizer</Label>
-                <input type="text" name="organizer" className={inputCls} placeholder="Organizer name"
+                <input type="text" name="organizer" className={inputCls} placeholder="Organizer name or department"
                   value={formData.organizer} onChange={handleInputChange} />
               </div>
 
-              <div>
-                <Label>Max Attendees</Label>
-                <input type="number" name="max_attendees" min="0" className={inputCls} placeholder="Leave blank for unlimited"
-                  value={formData.max_attendees} onChange={handleInputChange} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Max Attendees</Label>
+                  <input type="number" name="max_attendees" min="0" className={inputCls}
+                    placeholder="Unlimited"
+                    value={formData.max_attendees} onChange={handleInputChange} />
+                </div>
+                <div>
+                  <Label>Registration Link</Label>
+                  <input type="url" name="registration_link" className={inputCls}
+                    placeholder="https://…"
+                    value={formData.registration_link} onChange={handleInputChange} />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -387,10 +495,10 @@ export default function EventManagement() {
                   className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                   Cancel
                 </button>
-                <button type="submit"
-                  className="px-5 py-2 rounded-xl text-sm font-bold text-navy-900 transition-all hover:-translate-y-0.5"
+                <button type="submit" disabled={saving}
+                  className="px-5 py-2 rounded-xl text-sm font-bold text-navy-900 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}>
-                  {editingEvent ? 'Update' : 'Create'} Event
+                  {saving ? 'Saving…' : editingEvent ? 'Update Event' : 'Create Event'}
                 </button>
               </div>
             </form>

@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, permissions
 from rest_framework.pagination import PageNumberPagination
 from django.utils import timezone
 from .models import Event
@@ -14,6 +14,7 @@ class EventPagination(PageNumberPagination):
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = EventPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["title", "description"]

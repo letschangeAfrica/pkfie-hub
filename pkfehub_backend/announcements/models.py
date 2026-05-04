@@ -7,6 +7,7 @@ class Announcement(models.Model):
         ("low", "Low"),
         ("normal", "Normal"),
         ("high", "High"),
+        ("urgent", "Urgent"),
     )
     title = models.CharField(max_length=200)
     content = models.TextField()
