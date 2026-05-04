@@ -1,17 +1,20 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import api from '../../services/api';
 import {
   FiRefreshCw, FiSearch, FiX, FiCheckCircle,
-  FiBell, FiChevronLeft, FiChevronRight, FiExternalLink,
+  FiBell, FiChevronLeft, FiChevronRight, FiExternalLink, FiTrash2,
 } from 'react-icons/fi';
 
 const TYPE_COLOR = {
   info:    'bg-sky-500/20 text-sky-400 border-sky-500/30',
+  message: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
   warning: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   error:   'bg-red-500/20 text-red-400 border-red-500/30',
   success: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
 };
 const typeColor = (t) => TYPE_COLOR[(t || '').toLowerCase()] || TYPE_COLOR.info;
+
+const TYPE_LABELS = { info: 'Info', message: 'Message', warning: 'Warning', error: 'Error', success: 'Success' };
 
 const Sk = ({ className = '' }) => (
   <div className={`bg-navy-700/60 rounded-xl animate-pulse ${className}`} />
@@ -23,45 +26,62 @@ export default function AdminNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading,       setLoading]       = useState(false);
   const [onlyUnread,    setOnlyUnread]    = useState(false);
+  const [typeFilter,    setTypeFilter]    = useState('');
   const [page,          setPage]          = useState(1);
+  const [hasNext,       setHasNext]       = useState(false);
+  const [totalCount,    setTotalCount]    = useState(0);
   const [error,         setError]         = useState('');
   const [search,        setSearch]        = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [detailOpen,    setDetailOpen]    = useState(false);
   const [selected,      setSelected]      = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [bulkLoading,   setBulkLoading]   = useState(false);
+  const [deletingId,    setDeletingId]    = useState(null);
 
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const fetchNotifications = async () => {
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchNotifications = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/notifications/', {
-        params: { ordering: '-created_at', page, page_size: 20, unread: onlyUnread || undefined },
-      });
-      if (mounted.current) setNotifications(res.data.results ?? res.data ?? []);
+      const params = {
+        ordering: '-created_at',
+        page,
+        page_size: 20,
+      };
+      if (onlyUnread) params.unread = 'true';
+      if (typeFilter) params.notif_type = typeFilter;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+
+      const res = await api.get('/notifications/', { params });
+      if (!mounted.current) return;
+      const data = res.data.results ?? res.data ?? [];
+      setNotifications(Array.isArray(data) ? data : []);
+      setHasNext(!!res.data.next);
+      setTotalCount(res.data.count ?? (Array.isArray(res.data) ? res.data.length : 0));
     } catch {
       if (mounted.current) { setError('Failed to load notifications.'); setNotifications([]); }
     } finally {
       if (mounted.current) setLoading(false);
     }
-  };
+  }, [onlyUnread, typeFilter, page, debouncedSearch]);
 
-  useEffect(() => { fetchNotifications(); }, [onlyUnread, page]); // eslint-disable-line
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [onlyUnread, typeFilter, debouncedSearch]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return notifications;
-    return notifications.filter(n =>
-      (n.title || '').toLowerCase().includes(q) ||
-      (n.text  || '').toLowerCase().includes(q) ||
-      (n.notif_type || '').toLowerCase().includes(q)
-    );
-  }, [notifications, search]);
+  const filtered = useMemo(() => notifications, [notifications]);
 
   const markReadLocal   = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: true  } : n));
   const markUnreadLocal = (id) => setNotifications(p => p.map(n => n.id === id ? { ...n, read: false } : n));
@@ -76,15 +96,25 @@ export default function AdminNotifications() {
   const markAllRead = async () => {
     setBulkLoading(true);
     try {
-      try {
-        await api.post('/notifications/mark_all_read/', {});
-        await fetchNotifications();
-      } catch {
-        const unread = notifications.filter(n => !n.read);
-        await Promise.all(unread.map(n => api.patch(`/notifications/${n.id}/`, { read: true }).catch(() => {})));
-        setNotifications(p => p.map(n => ({ ...n, read: true })));
-      }
+      await api.post('/notifications/mark_all_read/', {});
+      setNotifications(p => p.map(n => ({ ...n, read: true })));
+      setTotalCount(0);
+    } catch {
+      // fallback: mark current page individually
+      const unread = notifications.filter(n => !n.read);
+      await Promise.all(unread.map(n => api.patch(`/notifications/${n.id}/`, { read: true }).catch(() => {})));
+      setNotifications(p => p.map(n => ({ ...n, read: true })));
     } finally { setBulkLoading(false); }
+  };
+
+  const deleteNotification = async (id) => {
+    setDeletingId(id);
+    try {
+      await api.delete(`/notifications/${id}/`);
+      setNotifications(p => p.filter(n => n.id !== id));
+      if (selected?.id === id) closeDetail();
+    } catch { /* silent — list stays unchanged */ }
+    finally { setDeletingId(null); }
   };
 
   const openDetail = async (id) => {
@@ -120,14 +150,14 @@ export default function AdminNotifications() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-4 text-sm">
               <span className="text-navy-400">
-                <strong className="text-white font-black">{notifications.length}</strong> shown
+                <strong className="text-white font-black">{totalCount}</strong> total
               </span>
               <span className="text-navy-400">
-                <strong className="text-amber-400 font-black">{unreadCount}</strong> unread
+                <strong className="text-amber-400 font-black">{unreadCount}</strong> unread on page
               </span>
             </div>
             <button
-              onClick={() => { setPage(1); fetchNotifications(); }}
+              onClick={() => fetchNotifications()}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold
                 text-navy-300 bg-navy-800 border border-navy-700/40
                 hover:text-white hover:border-navy-600/60 transition-all"
@@ -140,9 +170,9 @@ export default function AdminNotifications() {
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => { setOnlyUnread(v => !v); setPage(1); }}
+              onClick={() => { setOnlyUnread(v => !v); }}
               className={[
                 'px-4 py-2 rounded-xl text-xs font-black transition-all',
                 onlyUnread
@@ -153,6 +183,20 @@ export default function AdminNotifications() {
             >
               {onlyUnread ? 'Unread only' : 'All notifications'}
             </button>
+
+            {/* Type filter */}
+            <select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-navy-800 border border-navy-700/40
+                text-white focus:outline-none focus:border-gold/50 transition-all"
+            >
+              <option value="">All Types</option>
+              {Object.entries(TYPE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+
             <button
               onClick={markAllRead}
               disabled={bulkLoading || unreadCount === 0}
@@ -193,8 +237,9 @@ export default function AdminNotifications() {
                 <FiChevronLeft size={14} aria-hidden="true" />
               </button>
               <span className="text-xs font-bold text-navy-400 px-2">p.{page}</span>
-              <button onClick={() => setPage(p => p + 1)}
-                className="p-2 rounded-lg text-navy-400 hover:text-white bg-navy-800 border border-navy-700/40 transition-all">
+              <button onClick={() => setPage(p => p + 1)} disabled={!hasNext}
+                className="p-2 rounded-lg text-navy-400 hover:text-white bg-navy-800 border border-navy-700/40
+                  disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                 <FiChevronRight size={14} aria-hidden="true" />
               </button>
             </div>
@@ -242,7 +287,7 @@ export default function AdminNotifications() {
                 {!n.read && (
                   <span className="absolute top-4 right-4 w-2 h-2 rounded-full bg-gold" aria-label="Unread" />
                 )}
-                <div>
+                <div className="flex-shrink-0">
                   <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-black uppercase border ${typeColor(n.notif_type)}`}>
                     {n.notif_type || 'info'}
                   </span>
@@ -263,13 +308,15 @@ export default function AdminNotifications() {
                       View
                     </button>
                     {n.link && (
-                      <button
-                        onClick={() => n.link.startsWith('http') ? window.open(n.link, '_blank') : (window.location.href = n.link)}
+                      <a
+                        href={n.link}
+                        target={n.link.startsWith('http') ? '_blank' : '_self'}
+                        rel="noopener noreferrer"
                         className="text-xs font-bold text-sky-400 hover:underline transition-colors flex items-center gap-1"
                       >
                         <FiExternalLink size={11} aria-hidden="true" />
                         Open link
-                      </button>
+                      </a>
                     )}
                     {!n.read ? (
                       <button onClick={() => { markReadLocal(n.id); markAsRead(n.id); }}
@@ -282,11 +329,27 @@ export default function AdminNotifications() {
                         Mark unread
                       </button>
                     )}
+                    <button
+                      onClick={() => deleteNotification(n.id)}
+                      disabled={deletingId === n.id}
+                      className="text-xs font-bold text-navy-600 hover:text-red-400 transition-colors disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <FiTrash2 size={11} aria-hidden="true" />
+                      {deletingId === n.id ? 'Deleting…' : 'Delete'}
+                    </button>
                   </div>
                 </div>
               </article>
             ))}
           </div>
+        )}
+
+        {/* Page info */}
+        {!loading && filtered.length > 0 && (
+          <p className="text-xs text-navy-600 text-center">
+            Page {page} · {filtered.length} shown{totalCount ? ` of ${totalCount}` : ''}
+            {!hasNext && ' · End of list'}
+          </p>
         )}
       </div>
 
@@ -349,10 +412,10 @@ export default function AdminNotifications() {
                 )}
               </div>
 
-              <div
-                className="text-sm text-navy-200 leading-relaxed bg-navy-800/50 rounded-xl p-4 border border-navy-700/40"
-                dangerouslySetInnerHTML={{ __html: (selected.body || selected.text || '').replace(/\n/g, '<br/>') }}
-              />
+              {/* Safe text rendering — no dangerouslySetInnerHTML */}
+              <div className="text-sm text-navy-200 leading-relaxed bg-navy-800/50 rounded-xl p-4 border border-navy-700/40 whitespace-pre-wrap">
+                {selected.text || <em className="text-navy-500">No content.</em>}
+              </div>
 
               {selected.link && (
                 <a
@@ -366,7 +429,7 @@ export default function AdminNotifications() {
                 </a>
               )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 {!selected.read ? (
                   <button
                     onClick={() => { markReadLocal(selected.id); markAsRead(selected.id); setSelected(p => p ? { ...p, read: true } : p); }}
@@ -392,6 +455,15 @@ export default function AdminNotifications() {
                     Copy link
                   </button>
                 )}
+                <button
+                  onClick={() => deleteNotification(selected.id)}
+                  disabled={deletingId === selected.id}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-red-400
+                    bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all disabled:opacity-40"
+                >
+                  <FiTrash2 size={13} aria-hidden="true" />
+                  Delete
+                </button>
               </div>
             </div>
           )}

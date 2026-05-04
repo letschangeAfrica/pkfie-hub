@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../services/api';
 import {
   FiSettings, FiSave, FiRefreshCw, FiSlash,
@@ -40,8 +40,10 @@ export default function SystemSettings() {
   const [errorMsg,       setErrorMsg]       = useState('');
   const [fieldErrors,    setFieldErrors]    = useState({});
   const [isAdmin,        setIsAdmin]        = useState(false);
+  const [adminCheckFailed, setAdminCheckFailed] = useState(false);
   const [checkingUser,   setCheckingUser]   = useState(true);
   const [originalValues, setOriginalValues] = useState({});
+  const toastTimer = useRef(null);
 
   const modifiedKeys = useMemo(() => {
     const keys = [];
@@ -66,8 +68,10 @@ export default function SystemSettings() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [modifiedKeys]);
 
-  const clearAfter = (ms = 4000) =>
-    setTimeout(() => { setSuccessMsg(''); setErrorMsg(''); setFieldErrors({}); }, ms);
+  const clearAfter = (ms = 4000) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => { setSuccessMsg(''); setErrorMsg(''); setFieldErrors({}); }, ms);
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -105,10 +109,14 @@ export default function SystemSettings() {
         const prof = await api.get('/users/profile/');
         const p = prof.data || {};
         setIsAdmin(!!(p.is_staff || p.is_superuser || p.role === 'admin' || p.role === 'staff' || p.isAdmin || p.is_admin));
-      } catch { setIsAdmin(false); }
-      finally { setCheckingUser(false); }
+        setAdminCheckFailed(false);
+      } catch {
+        setIsAdmin(false);
+        setAdminCheckFailed(true);
+      } finally { setCheckingUser(false); }
       await loadSettings();
     })();
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (category, key, val) => {
@@ -315,7 +323,9 @@ export default function SystemSettings() {
         )}
 
         {!isAdmin && !checkingUser && (
-          <span className="text-xs text-navy-500">Saving disabled — admin only</span>
+          <span className="text-xs text-navy-500">
+            {adminCheckFailed ? 'Could not verify permissions — reload to retry' : 'Saving disabled — admin only'}
+          </span>
         )}
       </div>
 

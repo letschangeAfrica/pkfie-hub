@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import {
   FiCpu, FiSave, FiPlay, FiRefreshCw,
-  FiCheckCircle, FiSlash, FiMessageSquare, FiClock, FiStar, FiX,
+  FiMessageSquare, FiClock, FiStar, FiCopy,
 } from 'react-icons/fi';
 
 const DEFAULT_MODEL = {
@@ -63,12 +63,16 @@ export default function AIModelManagement() {
   const [errorMsg,       setErrorMsg]       = useState('');
   const [testMessage,    setTestMessage]    = useState('Give me a short welcome message for new students.');
   const [fieldErrors,    setFieldErrors]    = useState({});
-  const [isAdmin,        setIsAdmin]        = useState(false);
   const [confirmToggle,  setConfirmToggle]  = useState({ show: false, id: null });
   const [confirmReset,   setConfirmReset]   = useState({ show: false, id: null });
+  const toastTimer = useRef(null);
 
-  const clearAfter = (ms = 4500) =>
-    setTimeout(() => { setSuccessMsg(''); setErrorMsg(''); setFieldErrors({}); }, ms);
+  const clearAfter = (ms = 4500) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      setSuccessMsg(''); setErrorMsg(''); setFieldErrors({});
+    }, ms);
+  };
 
   const toast = (msg, isError = false) => {
     if (isError) setErrorMsg(msg); else setSuccessMsg(msg);
@@ -76,15 +80,9 @@ export default function AIModelManagement() {
   };
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/users/profile/');
-        const p = res.data || {};
-        setIsAdmin(!!(p.is_staff || p.is_superuser || ['admin','staff'].includes((p.role || '').toLowerCase())));
-      } catch { setIsAdmin(false); }
-    })();
     fetchModels();
     fetchStats();
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchModels = async () => {
@@ -148,7 +146,6 @@ export default function AIModelManagement() {
   };
 
   const saveConfig = async (modelId) => {
-    if (!isAdmin) { toast('Only admins may save model configurations.', true); return; }
     const cfg = selectedModel?.config || {};
     const cfgErrors = validateConfig(cfg);
     if (Object.keys(cfgErrors).length) {
@@ -183,7 +180,6 @@ export default function AIModelManagement() {
   };
 
   const handleToggleClick = (id) => {
-    if (!isAdmin) { toast('Only admins can change model activation.', true); return; }
     setConfirmToggle({ show: true, id });
   };
 
@@ -208,11 +204,10 @@ export default function AIModelManagement() {
   };
 
   const handleResetClick = (id) => {
-    if (!isAdmin && id) { toast('Only admins may reset server-side configuration.', true); return; }
     setConfirmReset({ show: true, id });
   };
 
-  const confirmReset_ = async () => {
+  const handleConfirmReset = async () => {
     const id = confirmReset.id;
     setConfirmReset({ show: false, id: null });
     if (!id) {
@@ -334,8 +329,7 @@ export default function AIModelManagement() {
                         ? handleToggleClick(model.id)
                         : toast('Cannot toggle default model. Create it on server first.', true);
                     }}
-                    disabled={!isAdmin}
-                    className={`px-3 py-1 rounded-lg text-[11px] font-black transition-colors disabled:opacity-40
+                    className={`px-3 py-1 rounded-lg text-[11px] font-black transition-colors
                       ${model.is_active
                         ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
                         : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
@@ -364,6 +358,24 @@ export default function AIModelManagement() {
             </div>
           ) : (
             <div className="p-5 space-y-5">
+              {/* Anthropic model selector */}
+              {selectedModel.provider?.toLowerCase() === 'anthropic' && (
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wide text-navy-400 mb-1.5">Claude Model</label>
+                  <select
+                    value={cfg.anthropic_model || 'claude-sonnet-4-6'}
+                    onChange={e => updateConfig(selectedModel.id, 'anthropic_model', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-navy-700/60
+                      text-white text-sm focus:outline-none focus:border-gold/50 transition-colors"
+                  >
+                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 — fast &amp; lightweight</option>
+                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — balanced (recommended)</option>
+                    <option value="claude-opus-4-7">Claude Opus 4.7 — most capable</option>
+                  </select>
+                  <p className="text-[11px] text-navy-600 mt-1">Specific Claude model variant to use for requests.</p>
+                </div>
+              )}
+
               {/* Temperature */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -420,7 +432,7 @@ export default function AIModelManagement() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => saveConfig(selectedModel.id)}
-                  disabled={saving || !isAdmin}
+                  disabled={saving}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-navy-900
                     disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5"
                   style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
@@ -430,7 +442,6 @@ export default function AIModelManagement() {
                 </button>
                 <button
                   onClick={() => handleResetClick(selectedModel.id)}
-                  disabled={selectedModel?.id ? !isAdmin : false}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-navy-300
                     bg-navy-700/60 hover:bg-navy-700 border border-navy-700/40
                     disabled:opacity-40 transition-colors"
@@ -465,24 +476,36 @@ export default function AIModelManagement() {
               </div>
 
               {/* Test result */}
-              {testResult && (
-                <div className="px-4 py-4 rounded-xl bg-navy-700/40 border border-navy-700/40 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-black uppercase tracking-wide text-navy-400">Last Test Result</p>
-                    {latencyMs !== null && (
-                      <span className="text-[11px] text-navy-500">{latencyMs} ms</span>
+              {testResult && (() => {
+                const resultText = typeof testResult === 'string'
+                  ? testResult
+                  : (testResult.message_text || testResult.ai_message || testResult.text || 'No text in response.');
+                return (
+                  <div className="px-4 py-4 rounded-xl bg-navy-700/40 border border-navy-700/40 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-black uppercase tracking-wide text-navy-400">Last Test Result</p>
+                      <div className="flex items-center gap-2">
+                        {latencyMs !== null && (
+                          <span className="text-[11px] text-navy-500">{latencyMs} ms</span>
+                        )}
+                        <button
+                          onClick={() => navigator.clipboard.writeText(resultText)}
+                          title="Copy result"
+                          className="p-1 rounded-lg hover:bg-navy-600/60 text-navy-500 hover:text-navy-300 transition-colors"
+                        >
+                          <FiCopy size={12} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                    {usedModelInfo && (
+                      <p className="text-[11px] text-navy-500">
+                        Used: {usedModelInfo.name}{usedModelInfo.id !== null ? ` (id:${usedModelInfo.id})` : ''}
+                      </p>
                     )}
+                    <p className="text-sm text-navy-200 leading-relaxed whitespace-pre-wrap">{resultText}</p>
                   </div>
-                  {usedModelInfo && (
-                    <p className="text-[11px] text-navy-500">
-                      Used: {usedModelInfo.name}{usedModelInfo.id !== null ? ` (id:${usedModelInfo.id})` : ''}
-                    </p>
-                  )}
-                  <p className="text-sm text-navy-200 leading-relaxed">
-                    {testResult.message_text || testResult.ai_message || JSON.stringify(testResult)}
-                  </p>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
@@ -579,7 +602,7 @@ export default function AIModelManagement() {
                 className="px-4 py-2 rounded-xl text-sm font-bold text-navy-300 bg-navy-700/60 hover:bg-navy-700 transition-colors">
                 Cancel
               </button>
-              <button onClick={confirmReset_}
+              <button onClick={handleConfirmReset}
                 className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors">
                 Reset
               </button>
