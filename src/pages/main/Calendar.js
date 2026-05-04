@@ -4,7 +4,7 @@ import api from '../../services/api';
 import {
   FiChevronLeft, FiChevronRight, FiPlus, FiX,
   FiClock, FiMapPin, FiUser, FiSearch,
-  FiCalendar, FiGrid, FiList, FiEdit2, FiTrash2,
+  FiCalendar, FiGrid, FiList, FiEdit2, FiTrash2, FiLink,
 } from 'react-icons/fi';
 
 /* ─── constants ────────────────────────────────────────── */
@@ -178,6 +178,25 @@ function MiniCal({ current, selected, onSelect, onChangeMonth }) {
   );
 }
 
+/* ─── NowLine ──────────────────────────────────────────── */
+function NowLine({ rowH }) {
+  const calc = () => {
+    const now = new Date();
+    return (now.getHours() + now.getMinutes() / 60) * rowH;
+  };
+  const [top, setTop] = useState(calc);
+  useEffect(() => {
+    const t = setInterval(() => setTop(calc()), 60000);
+    return () => clearInterval(t);
+  }, [rowH]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div style={{ top }} className="absolute left-0 right-0 z-20 flex items-center pointer-events-none">
+      <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1.5 flex-shrink-0" />
+      <div className="flex-1 h-px bg-red-500/80" />
+    </div>
+  );
+}
+
 /* ─── EventChip ────────────────────────────────────────── */
 function EventChip({ event, onClick }) {
   return (
@@ -192,7 +211,7 @@ function EventChip({ event, onClick }) {
 }
 
 /* ─── MonthView ────────────────────────────────────────── */
-function MonthView({ current, events, selectedDate, onSelectDate, onEventClick, onAddOnDate }) {
+function MonthView({ current, events, selectedDate, onSelectDate, onEventClick, onAddOnDate, onViewDay }) {
   const year  = current.getFullYear();
   const month = current.getMonth();
   const first = new Date(year, month, 1).getDay();
@@ -275,9 +294,11 @@ function MonthView({ current, events, selectedDate, onSelectDate, onEventClick, 
                     <EventChip key={e.id} event={e} onClick={onEventClick} />
                   ))}
                   {dayEvents.length > 3 && (
-                    <span className="text-[10px] pl-1 font-semibold text-slate-400 dark:text-navy-500">
+                    <button
+                      onClick={e => { e.stopPropagation(); onViewDay(date); }}
+                      className="text-[10px] pl-1 font-semibold text-slate-400 dark:text-navy-500 hover:text-gold dark:hover:text-gold transition-colors">
                       +{dayEvents.length - 3} more
-                    </span>
+                    </button>
                   )}
                 </>
               )}
@@ -351,12 +372,14 @@ function WeekView({ current, events, onEventClick }) {
           </div>
           {/* Day columns */}
           {days.map((d, di) => {
-            const layout = layoutEvents(eventsForDay(d));
+            const layout    = layoutEvents(eventsForDay(d));
+            const isDayToday = isSameDay(d, today);
             return (
               <div key={di} className="border-r border-slate-200 dark:border-navy-700/30 last:border-r-0 relative">
                 {HOURS.map(h => (
                   <div key={h} className="h-14 border-b border-slate-100 dark:border-navy-700/20" />
                 ))}
+                {isDayToday && <NowLine rowH={WEEK_ROW_H} />}
                 {layout.map(({ event: e, col, maxCols }) => {
                   const start  = new Date(e.start_time);
                   const end    = new Date(e.end_time);
@@ -436,6 +459,7 @@ function DayView({ current, events, onEventClick }) {
             {HOURS.map(h => (
               <div key={h} className="h-16 border-b border-slate-100 dark:border-navy-700/20" />
             ))}
+            {isToday && <NowLine rowH={DAY_ROW_H} />}
             {layout.map(({ event: e, col, maxCols }) => {
               const start  = new Date(e.start_time);
               const end    = new Date(e.end_time);
@@ -534,6 +558,16 @@ function EventPanel({ event, onClose, onEdit, onDeleted }) {
         {event.description && (
           <div className="pt-3 border-t border-slate-100 dark:border-navy-700/40">
             <p className="text-sm text-slate-600 dark:text-navy-300 leading-relaxed">{event.description}</p>
+          </div>
+        )}
+
+        {event.registration_link && (
+          <div className="flex items-start gap-3 text-sm">
+            <FiLink size={14} className="text-slate-400 dark:text-navy-400 flex-shrink-0 mt-0.5" />
+            <a href={event.registration_link} target="_blank" rel="noopener noreferrer"
+              className="text-sky-500 hover:text-sky-400 transition-colors break-all">
+              Register
+            </a>
           </div>
         )}
 
@@ -693,6 +727,12 @@ function EventModal({ event, initialDate, onClose, onSaved }) {
             </select>
           </div>
 
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={form.is_all_day}
+              onChange={e => set('is_all_day', e.target.checked)} className="accent-gold w-4 h-4" />
+            <span className="text-sm text-slate-600 dark:text-navy-300">All-day event</span>
+          </label>
+
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-navy-400 mb-1.5">Location</label>
             <input type="text" placeholder="Optional" value={form.location}
@@ -776,7 +816,7 @@ export default function Calendar() {
       if (typeFilter) params.event_type = typeFilter;
 
       const [calRes, eventsRes] = await Promise.allSettled([
-        api.get('/calendar/events/', { params }),
+        api.get('/calendar/events/', { params: { ...params, page_size: 200 } }),
         api.get('/events/', { params: { ...params, page_size: 100 } }),
       ]);
 
@@ -785,15 +825,17 @@ export default function Calendar() {
 
       const normalized = eventItems
         .map(e => ({
-          id:          `evt-${e.id}`,
-          title:       e.title,
-          start_time:  e.start_time || e.start_date || null,
-          end_time:    e.end_time   || e.end_date   || null,
-          event_type:  e.event_type || 'academic',
-          location:    e.location   || '',
-          description: e.description || '',
-          organizer:   e.organizer  || '',
-          _source:     'events',
+          id:                `evt-${e.id}`,
+          title:             e.title,
+          start_time:        e.start_time || e.start_date || null,
+          end_time:          e.end_time   || e.end_date   || null,
+          event_type:        e.event_type || 'academic',
+          location:          e.location   || '',
+          description:       e.description || '',
+          organizer:         e.organizer  || '',
+          max_attendees:     e.max_attendees || null,
+          registration_link: e.registration_link || null,
+          _source:           'events',
         }))
         .filter(e => e.start_time && !isNaN(new Date(e.start_time)));
 
@@ -1011,7 +1053,8 @@ export default function Calendar() {
               <MonthView current={current} events={events}
                 selectedDate={selectedDate} onSelectDate={setSelectedDate}
                 onEventClick={setSelectedEvent}
-                onAddOnDate={d => { setAddDate(d); setShowAddModal(true); }} />
+                onAddOnDate={d => { setAddDate(d); setShowAddModal(true); }}
+                onViewDay={d => { setSelectedDate(d); setCurrent(d); setView('day'); }} />
             )}
             {view === 'week' && (
               <WeekView current={current} events={events} onEventClick={setSelectedEvent} />

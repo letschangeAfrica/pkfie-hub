@@ -48,14 +48,20 @@ class FeedbackSubmissionCreateView(generics.CreateAPIView):
 
 class FeedbackSubmissionListView(generics.ListAPIView):
     serializer_class = FeedbackSubmissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = FeedbackPagination  # <--- this is CRITICAL
+    permission_classes = [permissions.IsAdminUser]
+    pagination_class = FeedbackPagination
 
     def get_queryset(self):
-        mine = self.request.query_params.get("mine")
         qs = FeedbackSubmission.objects.all().order_by("-created_at")
-        if mine and mine == "1":
-            return qs.filter(user=self.request.user)
+        status_param = self.request.query_params.get("status")
+        priority_param = self.request.query_params.get("priority")
+        category_param = self.request.query_params.get("category")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        if priority_param:
+            qs = qs.filter(priority=priority_param)
+        if category_param:
+            qs = qs.filter(category_id=category_param)
         return qs
 
 
