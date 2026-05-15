@@ -1,12 +1,15 @@
+import os
+import calendar
+
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from django.conf import settings as django_settings
 from django.utils import timezone
 from django.utils.timesince import timesince
 from django.db import connection
-from django.db.models.functions import TruncMonth
 from django.db.models import Count
 from django.db.models.functions import ExtractYear, ExtractMonth
 
@@ -15,8 +18,7 @@ from documents.models import Document
 from feedback.models import FeedbackSubmission
 from chat.models import Conversation
 from events.models import Event
-
-import calendar
+from announcements.models import Announcement
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -55,15 +57,20 @@ def check_api():
 
 
 def check_ai_service():
-    # Placeholder for your real AI service check
-    # Example: ping an external service or use a health check
-    return "online"
+    if os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY"):
+        return "online"
+    return "offline"
 
 
 def check_storage():
-    # Placeholder for your real storage check
-    # You could try to read/write a test file if using external storage
-    return "online"
+    try:
+        test_path = os.path.join(django_settings.MEDIA_ROOT, ".health_check")
+        with open(test_path, "w") as f:
+            f.write("ok")
+        os.remove(test_path)
+        return "online"
+    except Exception:
+        return "offline"
 
 
 @api_view(["GET"])
@@ -78,6 +85,7 @@ def dashboard_data(request):
         "upcomingEvents": Event.objects.filter(
             start_time__date__gte=timezone.now().date(), is_active=True
         ).count(),
+        "totalAnnouncements": Announcement.objects.filter(is_active=True).count(),
     }
 
     recent_activities = []
@@ -115,6 +123,18 @@ def dashboard_data(request):
                 "action": f"created event '{event.title}'",
                 "time": timesince(event.created_at) + " ago",
                 "datetime": event.created_at,
+            }
+        )
+
+    # Recent feedback submissions
+    for fb in FeedbackSubmission.objects.select_related("user").order_by("-created_at")[:2]:
+        recent_activities.append(
+            {
+                "id": f"fb_{fb.id}",
+                "user": str(fb.user),
+                "action": f"submitted feedback: {fb.subject}",
+                "time": timesince(fb.created_at) + " ago",
+                "datetime": fb.created_at,
             }
         )
 

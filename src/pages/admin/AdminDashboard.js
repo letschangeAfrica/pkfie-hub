@@ -11,7 +11,7 @@ import {
   FiInbox, FiCalendar, FiUserPlus, FiUpload,
   FiBell, FiSettings, FiTrendingUp, FiTrendingDown, FiActivity,
   FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiClock,
-  FiCpu, FiArrowRight, FiRefreshCw, FiStar, FiZap,
+  FiCpu, FiArrowRight, FiRefreshCw, FiStar, FiZap, FiMessageCircle,
 } from 'react-icons/fi';
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
@@ -23,12 +23,13 @@ const Sk = ({ className = '' }) => (
 
 /* ─── Static config ─────────────────────────────────────────────────────── */
 const STAT_META = [
-  { key: 'totalUsers',         label: 'Total Users',       icon: FiUsers,         color: 'bg-sky-500/20 text-sky-400',         route: '/admin/users'    },
-  { key: 'activeUsers',        label: 'Active Users',      icon: FiUserCheck,     color: 'bg-emerald-500/20 text-emerald-400', route: '/admin/users'    },
-  { key: 'totalDocuments',     label: 'Documents',         icon: FiFile,          color: 'bg-violet-500/20 text-violet-400',   route: '/admin/documents'},
-  { key: 'totalConversations', label: 'AI Conversations',  icon: FiMessageSquare, color: 'bg-amber-500/20 text-amber-400',     route: '/admin/ai-model' },
-  { key: 'pendingFeedback',    label: 'Pending Feedback',  icon: FiInbox,         color: 'bg-orange-500/20 text-orange-400',   route: '/admin/feedback' },
-  { key: 'upcomingEvents',     label: 'Upcoming Events',   icon: FiCalendar,      color: 'bg-pink-500/20 text-pink-400',       route: '/admin/events'   },
+  { key: 'totalUsers',          label: 'Total Users',        icon: FiUsers,         color: 'bg-sky-500/20 text-sky-400',         route: '/admin/users'         },
+  { key: 'activeUsers',         label: 'Active Users',       icon: FiUserCheck,     color: 'bg-emerald-500/20 text-emerald-400', route: '/admin/users'         },
+  { key: 'totalDocuments',      label: 'Documents',          icon: FiFile,          color: 'bg-violet-500/20 text-violet-400',   route: '/admin/documents'     },
+  { key: 'totalConversations',  label: 'AI Conversations',   icon: FiMessageSquare, color: 'bg-amber-500/20 text-amber-400',     route: '/admin/ai-model'      },
+  { key: 'pendingFeedback',     label: 'Pending Feedback',   icon: FiInbox,         color: 'bg-orange-500/20 text-orange-400',   route: '/admin/feedback'      },
+  { key: 'upcomingEvents',      label: 'Upcoming Events',    icon: FiCalendar,      color: 'bg-pink-500/20 text-pink-400',       route: '/admin/events'        },
+  { key: 'totalAnnouncements',  label: 'Announcements',      icon: FiBell,          color: 'bg-teal-500/20 text-teal-400',       route: '/admin/announcements' },
 ];
 
 const QUICK_ACTIONS = [
@@ -71,10 +72,11 @@ const statusRowBg = (s) => {
 };
 
 const activityMeta = (action = '') => {
-  if (action.includes('registered'))                    return { icon: FiUserPlus,  cls: 'bg-sky-500/20 text-sky-400'     };
-  if (action.includes('upload') || action.includes('document')) return { icon: FiUpload, cls: 'bg-violet-500/20 text-violet-400' };
-  if (action.includes('event'))                         return { icon: FiCalendar,  cls: 'bg-pink-500/20 text-pink-400'   };
-  return                                                       { icon: FiActivity,  cls: 'bg-slate-500/20 text-slate-400' };
+  if (action.includes('registered'))                          return { icon: FiUserPlus,      cls: 'bg-sky-500/20 text-sky-400'      };
+  if (action.includes('upload') || action.includes('document')) return { icon: FiUpload,      cls: 'bg-violet-500/20 text-violet-400' };
+  if (action.includes('event'))                               return { icon: FiCalendar,      cls: 'bg-pink-500/20 text-pink-400'    };
+  if (action.includes('feedback'))                            return { icon: FiMessageCircle, cls: 'bg-orange-500/20 text-orange-400' };
+  return                                                             { icon: FiActivity,      cls: 'bg-slate-500/20 text-slate-400'  };
 };
 
 const fmtResponseTime = (secs) => {
@@ -86,9 +88,10 @@ const fmtResponseTime = (secs) => {
 const fmtAgo = (ts) => {
   if (!ts) return '';
   const diff = Math.floor((Date.now() - ts.getTime()) / 1000);
-  if (diff < 5)  return 'Just now';
-  if (diff < 60) return `${diff}s ago`;
-  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 5)    return 'Just now';
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
 };
 
 /* ─── Component ─────────────────────────────────────────────────────────── */
@@ -141,14 +144,15 @@ export default function AdminDashboard() {
     }
 
     setLastRefreshed(new Date());
-    setLoading(false);
-    setRefreshing(false);
+    if (isRefresh) setRefreshing(false); else setLoading(false);
   }, []);
 
-  // Initial load + 60-second auto-refresh
+  // Initial load + 60-second auto-refresh (skipped when tab is hidden)
   useEffect(() => {
     load();
-    const id = setInterval(() => load(true), 60_000);
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load(true);
+    }, 60_000);
     return () => clearInterval(id);
   }, [load]);
 
@@ -245,9 +249,9 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
         {loading
-          ? [...Array(6)].map((_, i) => <Sk key={i} className="h-28" />)
+          ? [...Array(7)].map((_, i) => <Sk key={i} className="h-28" />)
           : STAT_META.map(({ key, label, icon: Icon, color, route }) => {
               const val     = stats?.[key];
               const isAlert = key === 'pendingFeedback' && val > 0;
