@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../../services/api';
 import {
   FiFile, FiFileText, FiSearch, FiUpload, FiTrash2,
   FiEye, FiEyeOff, FiDownload, FiX, FiFolder,
   FiRefreshCw, FiCheckCircle, FiAlertTriangle,
-  FiAlertCircle, FiFilter,
+  FiAlertCircle, FiFilter, FiEdit2,
 } from 'react-icons/fi';
 
-/* ─── Helpers ───────────────────────────────────────────────────────────── */
-const EMPTY_FORM = { title: '', description: '', category_id: '', file: null };
+/* ─── Constants ─────────────────────────────────────────────────────────── */
+const EMPTY_FORM      = { title: '', description: '', category_id: '', file: null };
+const EMPTY_EDIT_FORM = { title: '', description: '', category_id: '' };
 
 const FILE_META = {
   pdf:  { label: 'PDF',  bg: 'bg-red-500/20',    fg: 'text-red-400'    },
@@ -20,6 +21,16 @@ const FILE_META = {
   txt:  { label: 'TXT',  bg: 'bg-slate-500/20',   fg: 'text-slate-400'  },
 };
 
+const SORT_OPTIONS = [
+  { value: 'date-desc',     label: 'Newest first'  },
+  { value: 'date-asc',      label: 'Oldest first'  },
+  { value: 'title-asc',     label: 'Title A → Z'   },
+  { value: 'title-desc',    label: 'Title Z → A'   },
+  { value: 'status-asc',    label: 'Status'        },
+  { value: 'category-asc',  label: 'Category'      },
+];
+
+/* ─── Helpers ───────────────────────────────────────────────────────────── */
 function getFileMeta(doc) {
   const raw = (doc.file_type || doc.file || '').toLowerCase().split('.').pop();
   return FILE_META[raw] || { label: (raw || 'FILE').toUpperCase(), bg: 'bg-navy-700/60', fg: 'text-navy-400' };
@@ -112,18 +123,39 @@ export default function DocumentManagement() {
   const [refreshing,     setRefreshing]     = useState(false);
   const [fetchError,     setFetchError]     = useState(false);
   const [toast,          setToast]          = useState(null);
+
+  // Upload
   const [showUpload,     setShowUpload]     = useState(false);
   const [uploading,      setUploading]      = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [form,           setForm]           = useState(EMPTY_FORM);
   const [formError,      setFormError]      = useState('');
+
+  // Edit
+  const [editingDoc,     setEditingDoc]     = useState(null);
+  const [editForm,       setEditForm]       = useState(EMPTY_EDIT_FORM);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError,      setEditError]      = useState('');
+
+  // Filters & sort
   const [searchTerm,     setSearchTerm]     = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus,   setFilterStatus]   = useState('all');
+  const [sort,           setSort]           = useState('date-desc');
+
+  // Selection + bulk
+  const [selectedIds,    setSelectedIds]    = useState(new Set());
+  const [bulkAction,     setBulkAction]     = useState('');
+  const [confirmBulk,    setConfirmBulk]    = useState(false);
+
+  // Confirm delete
   const [confirmDelete,  setConfirmDelete]  = useState({ show: false, id: null, title: '' });
   const [togglingId,     setTogglingId]     = useState(null);
 
   const toastTimer = useRef(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const showToast = useCallback((type, msg) => {
     setToast({ type, msg });
@@ -150,34 +182,118 @@ export default function DocumentManagement() {
         setFetchError(true);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isRefresh) setRefreshing(false); else setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Clear selection when filters change
+  useEffect(() => { setSelectedIds(new Set()); }, [searchTerm, filterCategory, filterStatus]);
+
+  /* ── Sort config ── */
+  const [sortField, sortDir] = sort.split('-');
+
+  /* ── Filtered + sorted list ── */
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    return documents.filter(doc => {
+      const matchSearch = !q
+        || doc.title?.toLowerCase().includes(q)
+        || doc.description?.toLowerCase().includes(q);
+      const matchCat    = filterCategory === 'all' || getCategoryLabel(doc.category) === filterCategory;
+      const matchStatus = filterStatus   === 'all' || doc.status === filterStatus;
+      return matchSearch && matchCat && matchStatus;
+    });
+  }, [documents, searchTerm, filterCategory, filterStatus]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let av, bv;
+      if (sortField === 'title') {
+        av = a.title?.toLowerCase() || '';
+        bv = b.title?.toLowerCase() || '';
+      } else if (sortField === 'category') {
+        av = getCategoryLabel(a.category)?.toLowerCase() || '';
+        bv = getCategoryLabel(b.category)?.toLowerCase() || '';
+      } else if (sortField === 'status') {
+        av = a.status?.toLowerCase() || '';
+        bv = b.status?.toLowerCase() || '';
+      } else {
+        av = new Date(a.upload_date || a.created_at || 0).getTime();
+        bv = new Date(b.upload_date || b.created_at || 0).getTime();
+      }
+      return av < bv ? (sortDir === 'asc' ? -1 : 1)
+           : av > bv ? (sortDir === 'asc' ?  1 : -1)
+           : 0;
+    });
+  }, [filtered, sortField, sortDir]);
 
   /* ── Derived stats ── */
   const stats = {
     total:      documents.length,
     published:  documents.filter(d => d.status === 'Published').length,
     draft:      documents.filter(d => d.status === 'Draft').length,
-    categories: new Set(documents.map(d => getCategoryLabel(d.category)).filter(Boolean)).size,
+    categories: categories.length,
   };
-
-  /* ── Filtered list ── */
-  const filtered = documents.filter(doc => {
-    const q = searchTerm.toLowerCase().trim();
-    const matchSearch = !q
-      || doc.title?.toLowerCase().includes(q)
-      || doc.description?.toLowerCase().includes(q);
-    const matchCat = filterCategory === 'all' || getCategoryLabel(doc.category) === filterCategory;
-    const matchStatus = filterStatus === 'all' || doc.status === filterStatus;
-    return matchSearch && matchCat && matchStatus;
-  });
 
   const hasActiveFilter = searchTerm || filterCategory !== 'all' || filterStatus !== 'all';
   const clearFilters = () => { setSearchTerm(''); setFilterCategory('all'); setFilterStatus('all'); };
+
+  /* ── Selection ── */
+  const allSelected = sorted.length > 0 && sorted.every(d => selectedIds.has(d.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (allSelected) sorted.forEach(d => n.delete(d.id));
+      else             sorted.forEach(d => n.add(d.id));
+      return n;
+    });
+  };
+
+  const toggleSelect = (id) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  /* ── Edit ── */
+  const openEdit = (doc) => {
+    setEditingDoc(doc);
+    setEditForm({
+      title:       doc.title       || '',
+      description: doc.description || '',
+      category_id: doc.category?.id || '',
+    });
+    setEditError('');
+  };
+
+  const closeEdit = () => { setEditingDoc(null); setEditForm(EMPTY_EDIT_FORM); setEditError(''); };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editForm.title.trim())  { setEditError('Title is required.');    return; }
+    if (!editForm.category_id)   { setEditError('Category is required.'); return; }
+    setEditSubmitting(true);
+    setEditError('');
+    try {
+      const fd = new FormData();
+      fd.append('title',       editForm.title.trim());
+      fd.append('description', editForm.description || '');
+      fd.append('category_id', editForm.category_id);
+      const res = await api.patch(`/documents/${editingDoc.id}/`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setDocuments(prev => prev.map(d => d.id === editingDoc.id
+        ? { ...d, title: editForm.title.trim(), description: editForm.description, category: res.data.category ?? d.category }
+        : d
+      ));
+      showToast('success', 'Document updated.');
+      closeEdit();
+    } catch (err) {
+      setEditError(parseApiError(err));
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
 
   /* ── Upload ── */
   const closeUpload = () => { setShowUpload(false); setForm(EMPTY_FORM); setFormError(''); setUploadProgress(0); };
@@ -212,7 +328,7 @@ export default function DocumentManagement() {
     }
   };
 
-  /* ── Status toggle ── */
+  /* ── Status toggle (single) ── */
   const handleToggleStatus = async (doc) => {
     setTogglingId(doc.id);
     const newStatus = doc.status === 'Published' ? 'Draft' : 'Published';
@@ -227,6 +343,29 @@ export default function DocumentManagement() {
     }
   };
 
+  /* ── Bulk status toggle ── */
+  const executeBulk = async () => {
+    setConfirmBulk(false);
+    const ids       = [...selectedIds];
+    const newStatus = bulkAction === 'publish' ? 'Published' : 'Draft';
+    const results   = await Promise.allSettled(
+      ids.map(id => api.patch(`/documents/${id}/set_status/`, { status: newStatus }))
+    );
+    const succeeded = ids.filter((_, i) => results[i].status === 'fulfilled');
+    const failed    = ids.length - succeeded.length;
+    if (succeeded.length > 0) {
+      setDocuments(prev => prev.map(d => succeeded.includes(d.id) ? { ...d, status: newStatus } : d));
+    }
+    showToast(
+      failed === 0 ? 'success' : 'error',
+      failed === 0
+        ? `${succeeded.length} document(s) ${newStatus === 'Published' ? 'published' : 'unpublished'}.`
+        : `${succeeded.length} succeeded, ${failed} failed.`
+    );
+    setSelectedIds(new Set());
+    setBulkAction('');
+  };
+
   /* ── Delete ── */
   const handleDelete = async () => {
     const { id } = confirmDelete;
@@ -234,6 +373,7 @@ export default function DocumentManagement() {
     try {
       await api.delete(`/documents/${id}/`);
       setDocuments(prev => prev.filter(d => d.id !== id));
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
       showToast('success', 'Document deleted.');
     } catch (err) {
       showToast('error', parseApiError(err));
@@ -258,10 +398,12 @@ export default function DocumentManagement() {
         <Sk className="h-10 flex-1" />
         <Sk className="h-10 w-36" />
         <Sk className="h-10 w-32" />
+        <Sk className="h-10 w-32" />
       </div>
       <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-navy-700/30 animate-pulse">
+            <Sk className="w-4 h-4 flex-shrink-0" />
             <Sk className="w-9 h-9 flex-shrink-0" />
             <div className="flex-1 space-y-2">
               <Sk className="h-3.5 w-40" />
@@ -271,7 +413,7 @@ export default function DocumentManagement() {
             <Sk className="h-5 w-16" />
             <Sk className="h-5 w-12" />
             <div className="flex gap-1.5">
-              {[...Array(3)].map((_, j) => <Sk key={j} className="w-8 h-8" />)}
+              {[...Array(4)].map((_, j) => <Sk key={j} className="w-8 h-8" />)}
             </div>
           </div>
         ))}
@@ -374,6 +516,9 @@ export default function DocumentManagement() {
           <option value="Published">Published</option>
           <option value="Draft">Draft</option>
         </select>
+        <select value={sort} onChange={e => setSort(e.target.value)} className={selectCls}>
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
         {hasActiveFilter && (
           <button
             onClick={clearFilters}
@@ -385,9 +530,37 @@ export default function DocumentManagement() {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gold/[0.08] border border-gold/20">
+          <span className="text-xs font-black text-gold">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            {[
+              { action: 'publish',   label: 'Publish All',   cls: 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20' },
+              { action: 'unpublish', label: 'Unpublish All', cls: 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'       },
+            ].map(({ action, label, cls }) => (
+              <button
+                key={action}
+                onClick={() => { setBulkAction(action); setConfirmBulk(true); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${cls}`}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-1 text-navy-500 hover:text-white transition-colors"
+              aria-label="Clear selection"
+            >
+              <FiX size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-navy-800/60 rounded-2xl border border-navy-700/40 overflow-hidden">
-        {filtered.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-navy-700/60 flex items-center justify-center mx-auto mb-4">
               <FiFolder size={24} className="text-navy-500" aria-hidden />
@@ -416,6 +589,15 @@ export default function DocumentManagement() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-navy-700/40">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded accent-gold cursor-pointer"
+                        aria-label="Select all"
+                      />
+                    </th>
                     {['Document', 'Category', 'Type', 'Date', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-5 py-3.5 text-left text-[11px] font-black uppercase tracking-wide text-navy-500">
                         {h}
@@ -424,11 +606,20 @@ export default function DocumentManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-navy-700/30">
-                  {filtered.map(doc => {
-                    const meta = getFileMeta(doc);
+                  {sorted.map(doc => {
+                    const meta       = getFileMeta(doc);
                     const isToggling = togglingId === doc.id;
+                    const selected   = selectedIds.has(doc.id);
                     return (
-                      <tr key={doc.id} className="hover:bg-navy-700/20 transition-colors">
+                      <tr key={doc.id} className={`transition-colors ${selected ? 'bg-gold/[0.04]' : 'hover:bg-navy-700/20'}`}>
+                        <td className="px-4 py-3.5">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleSelect(doc.id)}
+                            className="w-4 h-4 rounded accent-gold cursor-pointer"
+                          />
+                        </td>
                         <td className="px-5 py-3.5 max-w-[260px]">
                           <div className="flex items-start gap-3">
                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${meta.bg}`}>
@@ -482,6 +673,15 @@ export default function DocumentManagement() {
                               </a>
                             )}
                             <button
+                              onClick={() => openEdit(doc)}
+                              title="Edit document"
+                              className="w-8 h-8 rounded-lg flex items-center justify-center
+                                bg-navy-700/60 hover:bg-violet-500/20 hover:text-violet-400
+                                text-navy-400 transition-colors"
+                            >
+                              <FiEdit2 size={13} aria-hidden />
+                            </button>
+                            <button
                               onClick={() => handleToggleStatus(doc)}
                               disabled={isToggling}
                               title={doc.status === 'Published' ? 'Unpublish' : 'Publish'}
@@ -518,8 +718,8 @@ export default function DocumentManagement() {
 
             {/* Mobile card list */}
             <div className="sm:hidden divide-y divide-navy-700/30">
-              {filtered.map(doc => {
-                const meta = getFileMeta(doc);
+              {sorted.map(doc => {
+                const meta       = getFileMeta(doc);
                 const isToggling = togglingId === doc.id;
                 return (
                   <div key={doc.id} className="p-4 flex items-start gap-3">
@@ -551,6 +751,10 @@ export default function DocumentManagement() {
                           <FiDownload size={13} aria-hidden />
                         </a>
                       )}
+                      <button onClick={() => openEdit(doc)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center bg-navy-700/60 hover:bg-violet-500/20 hover:text-violet-400 text-navy-400 transition-colors">
+                        <FiEdit2 size={13} aria-hidden />
+                      </button>
                       <button disabled={isToggling} onClick={() => handleToggleStatus(doc)}
                         className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40
                           ${doc.status === 'Published'
@@ -569,10 +773,15 @@ export default function DocumentManagement() {
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-3 border-t border-navy-700/40 text-xs text-navy-500">
-              {filtered.length === documents.length
-                ? `${documents.length} document${documents.length !== 1 ? 's' : ''}`
-                : `${filtered.length} of ${documents.length} documents`}
+            <div className="px-5 py-3 border-t border-navy-700/40 flex items-center justify-between text-xs text-navy-500">
+              <span>
+                {sorted.length === documents.length
+                  ? `${documents.length} document${documents.length !== 1 ? 's' : ''}`
+                  : `${sorted.length} of ${documents.length} documents`}
+              </span>
+              {selectedIds.size > 0 && (
+                <span className="text-gold font-bold">{selectedIds.size} selected</span>
+              )}
             </div>
           </>
         )}
@@ -586,12 +795,8 @@ export default function DocumentManagement() {
               <FiTrash2 size={20} className="text-red-400" />
             </div>
             <h3 className="text-base font-black text-white text-center mb-1">Delete Document</h3>
-            <p className="text-sm text-navy-400 text-center mb-1">
-              Are you sure you want to delete
-            </p>
-            <p className="text-sm font-bold text-white text-center mb-6 truncate px-4">
-              "{confirmDelete.title}"
-            </p>
+            <p className="text-sm text-navy-400 text-center mb-1">Are you sure you want to delete</p>
+            <p className="text-sm font-bold text-white text-center mb-6 truncate px-4">"{confirmDelete.title}"</p>
             <p className="text-xs text-red-400/80 text-center mb-6">This action cannot be undone.</p>
             <div className="flex gap-3">
               <button
@@ -609,6 +814,116 @@ export default function DocumentManagement() {
                 Delete
               </button>
             </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* ── Bulk confirm ── */}
+      {confirmBulk && (
+        <ModalOverlay onClose={() => setConfirmBulk(false)}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <h3 className="text-base font-black text-white text-center mb-2">
+              {bulkAction === 'publish' ? 'Publish' : 'Unpublish'} {selectedIds.size} document{selectedIds.size !== 1 ? 's' : ''}?
+            </h3>
+            <p className="text-sm text-navy-400 text-center mb-6">You can reverse this later.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmBulk(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-navy-300
+                  bg-navy-700/60 hover:bg-navy-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulk}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-colors
+                  ${bulkAction === 'publish' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'}`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* ── Edit modal ── */}
+      {editingDoc && (
+        <ModalOverlay onClose={closeEdit}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-navy-700/40">
+              <h3 className="text-lg font-black text-white">Edit Document</h3>
+              <button
+                onClick={closeEdit}
+                className="w-8 h-8 rounded-lg flex items-center justify-center
+                  bg-navy-700/60 hover:bg-navy-700 text-navy-400 hover:text-white transition-colors"
+              >
+                <FiX size={15} aria-hidden />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="mx-6 mt-5 flex items-start gap-3 px-4 py-3 rounded-xl
+                bg-red-500/10 border border-red-500/20">
+                <FiAlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-red-300 leading-relaxed whitespace-pre-wrap">{editError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <Lbl required>Title</Lbl>
+                <input
+                  type="text" required className={fieldCls} placeholder="Document title"
+                  value={editForm.title}
+                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Lbl>Description</Lbl>
+                <textarea
+                  rows={3} className={fieldCls + ' resize-none'} placeholder="Optional description…"
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Lbl required>Category</Lbl>
+                <select
+                  required className={fieldCls}
+                  value={editForm.category_id}
+                  onChange={e => setEditForm(f => ({ ...f, category_id: e.target.value }))}
+                >
+                  <option value="">Select a category</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <p className="text-[11px] text-navy-600">
+                To replace the file, delete this document and re-upload.
+              </p>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button" onClick={closeEdit}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold text-navy-300
+                    bg-navy-700/60 hover:bg-navy-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-navy-900 transition-all
+                    hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed
+                    disabled:hover:translate-y-0"
+                  style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
+                >
+                  {editSubmitting ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </ModalOverlay>
       )}
@@ -704,7 +1019,6 @@ export default function DocumentManagement() {
                 )}
               </div>
 
-              {/* Upload progress bar */}
               {uploading && uploadProgress > 0 && (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[10px] font-bold text-navy-400">

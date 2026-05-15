@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   FiUsers, FiSearch, FiPlus, FiEdit2, FiTrash2, FiX,
   FiCheck, FiSlash, FiRefreshCw, FiAlertCircle,
   FiCheckCircle, FiAlertTriangle, FiChevronUp, FiChevronDown,
+  FiShield,
 } from 'react-icons/fi';
 
 const PAGE_SIZE = 20;
@@ -15,6 +17,16 @@ const ROLE_COLOR = {
   parent:   'bg-emerald-500/20 text-emerald-400',
   staff:    'bg-orange-500/20 text-orange-400',
 };
+const ROLE_LABELS = {
+  student: 'Student', parent: 'Parent',
+  lecturer: 'Lecturer', staff: 'Staff', admin: 'Administrator',
+};
+const FIELD_LABELS = {
+  first_name: 'First Name', last_name: 'Last Name',
+  email: 'Email', password: 'Password', password2: 'Confirm Password',
+  role: 'Role', student_id: 'Student ID', phone_number: 'Phone Number',
+  is_active: 'Account Status', non_field_errors: 'Error',
+};
 const EMPTY_FORM = {
   first_name: '', last_name: '', email: '',
   role: 'student', student_id: '', phone_number: '',
@@ -25,7 +37,11 @@ const EMPTY_FORM = {
 function parseApiError(data) {
   if (!data || typeof data !== 'object') return 'Something went wrong. Please try again.';
   return Object.entries(data)
-    .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+    .map(([k, v]) => {
+      const label = FIELD_LABELS[k] || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const msg   = Array.isArray(v) ? v.join(', ') : v;
+      return `${label}: ${msg}`;
+    })
     .join('\n');
 }
 
@@ -127,6 +143,8 @@ function SortTh({ field, sortField, sortDir, onSort, children, className = '' })
 
 /* ─── Main ──────────────────────────────────────────────────────────────── */
 export default function UserManagement() {
+  const { currentUser } = useAuth();
+
   const [users,         setUsers]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [fetchError,    setFetchError]    = useState(false);
@@ -139,6 +157,7 @@ export default function UserManagement() {
   const [confirmDelete, setConfirmDelete] = useState({ show: false, userId: null });
   const [confirmToggle, setConfirmToggle] = useState({ show: false, userId: null });
   const [confirmBulk,   setConfirmBulk]  = useState(false);
+  const [roleModal,     setRoleModal]     = useState({ show: false, user: null, newRole: '' });
   const [selectedIds,   setSelectedIds]  = useState(new Set());
   const [bulkAction,    setBulkAction]   = useState('');
   const [searchTerm,    setSearchTerm]   = useState('');
@@ -149,6 +168,9 @@ export default function UserManagement() {
   const [page,          setPage]         = useState(1);
 
   const toastTimer = useRef(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const showToast = useCallback((type, msg) => {
     setToast({ type, msg });
@@ -170,7 +192,12 @@ export default function UserManagement() {
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
-  useEffect(() => { setPage(1); }, [searchTerm, roleFilter, statusFilter, sortField, sortDir]);
+
+  // Reset page and clear selection when filters change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [searchTerm, roleFilter, statusFilter, sortField, sortDir]);
 
   /* ── Filter + sort ── */
   const filtered = useMemo(() => {
@@ -299,11 +326,29 @@ export default function UserManagement() {
     }
   };
 
+  /* ── Role change ── */
+  const openRoleModal = (user) => {
+    setRoleModal({ show: true, user, newRole: user.role });
+  };
+
+  const doRoleChange = async () => {
+    const { user, newRole } = roleModal;
+    setRoleModal({ show: false, user: null, newRole: '' });
+    if (!user || newRole === user.role) return;
+    try {
+      await api.patch(`/users/${user.id}/`, { role: newRole });
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
+      showToast('success', `${user.first_name}'s role changed to ${ROLE_LABELS[newRole]}.`);
+    } catch {
+      showToast('error', 'Failed to change role. Try again.');
+    }
+  };
+
   /* ── Single confirm actions ── */
   const toggleUser = users.find(u => u.id === confirmToggle.userId);
 
   const doToggle = async () => {
-    const id = confirmToggle.userId;
+    const id   = confirmToggle.userId;
     const user = users.find(u => u.id === id);
     setConfirmToggle({ show: false, userId: null });
     if (!user) return;
@@ -333,25 +378,58 @@ export default function UserManagement() {
   const executeBulk = async () => {
     setConfirmBulk(false);
     const ids = [...selectedIds];
-    try {
-      if (bulkAction === 'activate') {
-        await Promise.allSettled(ids.map(id => api.patch(`/users/${id}/`, { is_active: true })));
-        setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, is_active: true } : u));
-        showToast('success', `${ids.length} user(s) activated.`);
-      } else if (bulkAction === 'deactivate') {
-        await Promise.allSettled(ids.map(id => api.patch(`/users/${id}/`, { is_active: false })));
-        setUsers(prev => prev.map(u => ids.includes(u.id) ? { ...u, is_active: false } : u));
-        showToast('success', `${ids.length} user(s) deactivated.`);
-      } else if (bulkAction === 'delete') {
-        await Promise.allSettled(ids.map(id => api.delete(`/users/${id}/`)));
-        setUsers(prev => prev.filter(u => !ids.includes(u.id)));
-        showToast('success', `${ids.length} user(s) deleted.`);
+
+    if (bulkAction === 'activate') {
+      const results = await Promise.allSettled(
+        ids.map(id => api.patch(`/users/${id}/`, { is_active: true }))
+      );
+      const succeeded = ids.filter((_, i) => results[i].status === 'fulfilled');
+      const failed    = ids.length - succeeded.length;
+      if (succeeded.length > 0) {
+        setUsers(prev => prev.map(u => succeeded.includes(u.id) ? { ...u, is_active: true } : u));
       }
-      setSelectedIds(new Set());
-      setBulkAction('');
-    } catch {
-      showToast('error', 'Some actions failed. Refresh and try again.');
+      showToast(
+        failed === 0 ? 'success' : 'error',
+        failed === 0
+          ? `${succeeded.length} user(s) activated.`
+          : `${succeeded.length} activated, ${failed} failed.`
+      );
+
+    } else if (bulkAction === 'deactivate') {
+      const results = await Promise.allSettled(
+        ids.map(id => api.patch(`/users/${id}/`, { is_active: false }))
+      );
+      const succeeded = ids.filter((_, i) => results[i].status === 'fulfilled');
+      const failed    = ids.length - succeeded.length;
+      if (succeeded.length > 0) {
+        setUsers(prev => prev.map(u => succeeded.includes(u.id) ? { ...u, is_active: false } : u));
+      }
+      showToast(
+        failed === 0 ? 'success' : 'error',
+        failed === 0
+          ? `${succeeded.length} user(s) deactivated.`
+          : `${succeeded.length} deactivated, ${failed} failed.`
+      );
+
+    } else if (bulkAction === 'delete') {
+      const results = await Promise.allSettled(
+        ids.map(id => api.delete(`/users/${id}/`))
+      );
+      const succeeded = ids.filter((_, i) => results[i].status === 'fulfilled');
+      const failed    = ids.length - succeeded.length;
+      if (succeeded.length > 0) {
+        setUsers(prev => prev.filter(u => !succeeded.includes(u.id)));
+      }
+      showToast(
+        failed === 0 ? 'success' : 'error',
+        failed === 0
+          ? `${succeeded.length} user(s) deleted.`
+          : `${succeeded.length} deleted, ${failed} failed.`
+      );
     }
+
+    setSelectedIds(new Set());
+    setBulkAction('');
   };
 
   /* ── Loading / error full-page ── */
@@ -379,7 +457,7 @@ export default function UserManagement() {
               <div className="h-3 w-16 bg-navy-700/40 rounded" />
               <div className="h-3 w-16 bg-navy-700/40 rounded" />
               <div className="flex gap-1.5">
-                {[...Array(3)].map((_, j) => <div key={j} className="w-8 h-8 bg-navy-700/60 rounded-lg" />)}
+                {[...Array(4)].map((_, j) => <div key={j} className="w-8 h-8 bg-navy-700/60 rounded-lg" />)}
               </div>
             </div>
           ))}
@@ -432,7 +510,7 @@ export default function UserManagement() {
         </button>
       </div>
 
-      {/* Role breakdown pills — each pill doubles as a filter toggle */}
+      {/* Role breakdown pills */}
       {users.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {ROLES.filter(r => roleCounts[r] > 0).map(r => (
@@ -445,7 +523,7 @@ export default function UserManagement() {
                   : 'bg-navy-800/60 text-navy-400 border border-navy-700/40 hover:border-navy-600/60'
               }`}
             >
-              {r.charAt(0).toUpperCase() + r.slice(1)}s
+              {ROLE_LABELS[r]}s
               <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black min-w-[16px] text-center ${
                 roleFilter === r ? 'bg-black/20' : 'bg-navy-700/60'
               }`}>
@@ -476,7 +554,7 @@ export default function UserManagement() {
             text-white text-sm focus:outline-none focus:border-gold/40 transition-colors"
         >
           <option value="all">All Roles</option>
-          {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+          {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
         </select>
         <select
           value={statusFilter}
@@ -565,6 +643,7 @@ export default function UserManagement() {
                   {paginated.map(user => {
                     const avatar   = user.profile?.profile_picture_url || null;
                     const selected = selectedIds.has(user.id);
+                    const isSelf   = user.id === currentUser?.id;
                     return (
                       <tr
                         key={user.id}
@@ -594,8 +673,12 @@ export default function UserManagement() {
                               }
                             </div>
                             <div className="min-w-0">
-                              <p className="font-bold text-white truncate">
+                              <p className="font-bold text-white truncate flex items-center gap-1.5">
                                 {user.first_name} {user.last_name}
+                                {isSelf && (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full
+                                    bg-gold/20 text-gold">You</span>
+                                )}
                               </p>
                               <p className="text-xs text-navy-500 truncate">
                                 {user.phone_number || (user.student_id ? `ID: ${user.student_id}` : '—')}
@@ -638,9 +721,22 @@ export default function UserManagement() {
                               <FiEdit2 size={13} aria-hidden />
                             </button>
                             <button
+                              onClick={() => openRoleModal(user)}
+                              title="Change role"
+                              disabled={isSelf}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center
+                                bg-navy-700/60 hover:bg-violet-500/20 hover:text-violet-400
+                                text-navy-400 transition-colors
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <FiShield size={13} aria-hidden />
+                            </button>
+                            <button
                               onClick={() => setConfirmToggle({ show: true, userId: user.id })}
                               title={user.is_active ? 'Deactivate' : 'Activate'}
+                              disabled={isSelf}
                               className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                disabled:opacity-30 disabled:cursor-not-allowed
                                 ${user.is_active
                                   ? 'bg-navy-700/60 hover:bg-amber-500/20 hover:text-amber-400 text-navy-400'
                                   : 'bg-navy-700/60 hover:bg-emerald-500/20 hover:text-emerald-400 text-navy-400'}`}
@@ -653,9 +749,11 @@ export default function UserManagement() {
                             <button
                               onClick={() => setConfirmDelete({ show: true, userId: user.id })}
                               title="Delete user"
+                              disabled={isSelf}
                               className="w-8 h-8 rounded-lg flex items-center justify-center
                                 bg-navy-700/60 hover:bg-red-500/20 hover:text-red-400
-                                text-navy-400 transition-colors"
+                                text-navy-400 transition-colors
+                                disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                               <FiTrash2 size={13} aria-hidden />
                             </button>
@@ -803,6 +901,57 @@ export default function UserManagement() {
         </ModalOverlay>
       )}
 
+      {/* ── Role change modal ── */}
+      {roleModal.show && (
+        <ModalOverlay onClose={() => setRoleModal({ show: false, user: null, newRole: '' })}>
+          <div className="bg-navy-800 rounded-2xl border border-navy-700/40 p-6 w-full max-w-sm">
+            <div className="w-12 h-12 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
+              <FiShield size={20} className="text-violet-400" />
+            </div>
+            <h3 className="text-base font-black text-white text-center mb-1">Change Role</h3>
+            <p className="text-sm font-bold text-white text-center mt-1">
+              {roleModal.user?.first_name} {roleModal.user?.last_name}
+            </p>
+            <p className="text-xs text-navy-500 text-center mt-0.5 mb-5">
+              Current role:{' '}
+              <span className={`font-black capitalize ${ROLE_COLOR[roleModal.user?.role]?.split(' ')[1] || 'text-navy-300'}`}>
+                {ROLE_LABELS[roleModal.user?.role]}
+              </span>
+            </p>
+            <Sel
+              value={roleModal.newRole}
+              onChange={e => setRoleModal(prev => ({ ...prev, newRole: e.target.value }))}
+            >
+              {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </Sel>
+            {roleModal.newRole !== roleModal.user?.role && (
+              <p className="text-[11px] text-amber-400 mt-2 text-center font-semibold">
+                This changes what the user can access on the platform.
+              </p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setRoleModal({ show: false, user: null, newRole: '' })}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-navy-300
+                  bg-navy-700/60 hover:bg-navy-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doRoleChange}
+                disabled={roleModal.newRole === roleModal.user?.role}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-navy-900
+                  transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed
+                  disabled:hover:translate-y-0"
+                style={{ background: 'linear-gradient(135deg,#FFD700,#FFEE55,#FFD700)' }}
+              >
+                Save Role
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
       {/* ── Create / Edit modal ── */}
       {showForm && (
         <ModalOverlay onClose={closeForm}>
@@ -869,21 +1018,16 @@ export default function UserManagement() {
                         {formData.role}
                       </span>
                       <span className="text-[10px] font-black text-navy-600 uppercase tracking-wide">
-                        Read-only
+                        Use shield icon
                       </span>
                     </div>
                   ) : (
                     <Sel name="role" value={formData.role} onChange={handleInput} required>
-                      <option value="student">Student</option>
-                      <option value="parent">Parent</option>
-                      <option value="lecturer">Lecturer</option>
-                      <option value="staff">Staff</option>
-                      <option value="admin">Administrator</option>
+                      {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                     </Sel>
                   )}
                 </div>
 
-                {/* Student ID — only shown for students */}
                 {(formData.role === 'student' || editingUser?.role === 'student') && (
                   <div>
                     <Lbl required={!editingUser && formData.role === 'student'}>Student ID</Lbl>
