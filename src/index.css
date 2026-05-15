@@ -64,3 +64,58 @@
 
 /* ── Selection colour ──────────────────────────────────────── */
 ::selection { background: #FFD700; color: #001F5B; }
+
+/* ── Cameroon tri-colour stripe (Green / Red / Yellow) ──────── *
+ * Use on decorative borders or section dividers.
+ * Colours: Cameroon flag green #007A5E, red #CE1126, yellow #FCD116
+ */
+.cameroon-stripe {
+  height: 4px;
+  flex-shrink: 0;
+  background: linear-gradient(
+    90deg,
+    #007A5E 0%,    #007A5E 33.3%,
+    #CE1126 33.3%, #CE1126 66.6%,
+    #FCD116 66.6%, #FCD116 100%
+  );
+}
+
+/* ── Toghu / Bamileke textile motif ─────────────────────────── *
+ * Inspired by the interlocking diamond geometry of Bamileke Toghu
+ * royal cloth from the Western Highlands of Cameroon.
+ * Use as a subtle background texture on hero panels / login panels.
+ */
+.toghu-pattern {
+  background-image:
+    /* Diamond grid — gold threads */
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 215,   0, .07) 0,
+      rgba(255, 215,   0, .07) 1.5px,
+      transparent 0,
+      transparent 20px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 215,   0, .07) 0,
+      rgba(255, 215,   0, .07) 1.5px,
+      transparent 0,
+      transparent 20px
+    ),
+    /* Secondary interlace — forest green threads */
+    repeating-linear-gradient(
+      45deg,
+      rgba( 26, 107,  58, .05) 10px,
+      rgba( 26, 107,  58, .05) 11px,
+      transparent 11px,
+      transparent 30px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba( 26, 107,  58, .05) 10px,
+      rgba( 26, 107,  58, .05) 11px,
+      transparent 11px,
+      transparent 30px
+    );
+  background-size: 40px 40px;
+}

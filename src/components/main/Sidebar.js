@@ -8,30 +8,24 @@ import {
   FiChevronLeft, FiMic,
 } from 'react-icons/fi';
 import PKFLogo from '../PKFLogo';
+import { NAV_PROVERBS } from '../../data/proverbs';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 const navItems = [
-  { path: '/',               label: 'Dashboard',      icon: FiHome,          roles: null,        proverb: 'Knowledge is like a baobab tree; no one can encompass it with their hands.' },
-  { path: '/handbook',       label: 'Handbook',        icon: FiBook,          roles: null,        proverb: 'When you follow in the path of your father, you learn to walk like him.' },
-  { path: '/assistant',      label: 'AI Assistant',    icon: FiCpu,           roles: null,        proverb: 'A single conversation with a wise man is better than ten years of study.' },
-  { path: '/pathfinder',     label: 'Pathfinder',      icon: FiCompass,       roles: ['student'], proverb: 'If you want to go far, go together.' },
-  { path: '/innovation',     label: 'Innovation Hub',  icon: FiZap,           roles: ['student'], proverb: 'Those who plant trees knowing they will never sit in their shade understand life.' },
-  { path: '/feedback',       label: 'Feedback',        icon: FiMessageCircle, roles: null,        proverb: 'Your voice is the engine of change.' },
-  { path: '/showcase',       label: 'Campus Showcase', icon: FiCamera,        roles: null,        proverb: 'Let your light shine so others may see your good works.' },
-  { path: '/calendar',       label: 'Calendar',        icon: FiCalendar,      roles: null,        proverb: 'Time waits for no one, but a wise person makes use of every moment.' },
-  { path: '/announcements',  label: 'Announcements',   icon: FiMic,           roles: null,        proverb: 'News travels faster than the wind across the savannah.' },
-  { path: '/notifications',  label: 'Notifications',   icon: FiBell,          roles: null,        proverb: 'The one who listens is the one who understands.' },
+  { path: '/',               label: 'Dashboard',      icon: FiHome,          roles: null        },
+  { path: '/handbook',       label: 'Handbook',        icon: FiBook,          roles: null        },
+  { path: '/assistant',      label: 'AI Assistant',    icon: FiCpu,           roles: null        },
+  { path: '/pathfinder',     label: 'Pathfinder',      icon: FiCompass,       roles: ['student'] },
+  { path: '/innovation',     label: 'Innovation Hub',  icon: FiZap,           roles: ['student'] },
+  { path: '/feedback',       label: 'Feedback',        icon: FiMessageCircle, roles: null        },
+  { path: '/showcase',       label: 'Campus Showcase', icon: FiCamera,        roles: null        },
+  { path: '/calendar',       label: 'Calendar',        icon: FiCalendar,      roles: null        },
+  { path: '/announcements',  label: 'Announcements',   icon: FiMic,           roles: null        },
+  { path: '/notifications',  label: 'Notifications',   icon: FiBell,          roles: null        },
 ];
 
-// Pages not in navItems still get a proverb
-const extraProverbs = {
-  '/profile':  'A person is a person because of other people.',
-  '/settings': 'Small adjustments in the right direction lead to great journeys.',
-  '/search':   'To ask is not to be lost — it is to find the way.',
-};
-
-const DEFAULT_PROVERB = 'Ubuntu: I am because we are.';
+const DEFAULT_PROVERB = { text: 'Ubuntu: I am because we are.', people: 'Nguni', region: 'Southern Africa' };
 
 const Sidebar = ({ sidebarOpen, onClose, onNavClick, collapsed, onToggleCollapse }) => {
   const { pathname } = useLocation();
@@ -39,10 +33,7 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick, collapsed, onToggleCollapse
   const { currentUser } = useAuth();
   const { unreadCount }  = useNotifications();
 
-  const currentProverb =
-    navItems.find(n => n.path === pathname)?.proverb ||
-    extraProverbs[pathname] ||
-    DEFAULT_PROVERB;
+  const currentProverb = NAV_PROVERBS[pathname] || DEFAULT_PROVERB;
 
   const handleNav = (path) => {
     navigate(path);
@@ -257,9 +248,14 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick, collapsed, onToggleCollapse
           {!collapsed && (
             <blockquote
               aria-label="African proverb"
-              className="text-[11px] leading-relaxed text-navy-400 italic border-l-2 border-gold/40 pl-3"
+              className="border-l-2 border-gold/40 pl-3 space-y-1"
             >
-              "{currentProverb}"
+              <p className="text-[11px] leading-relaxed text-navy-400 italic">
+                "{currentProverb.text}"
+              </p>
+              <p className="text-[9px] text-navy-600 font-semibold">
+                — {currentProverb.people}, {currentProverb.region}
+              </p>
             </blockquote>
           )}
 

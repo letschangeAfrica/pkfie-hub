@@ -8,6 +8,7 @@ import {
   FiCalendar, FiArrowRight, FiMapPin, FiClock,
   FiX, FiUsers, FiAlertTriangle, FiInfo, FiMessageCircle, FiLock,
 } from 'react-icons/fi';
+import { getDailyProverb } from '../../data/proverbs';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
@@ -93,10 +94,11 @@ const Dashboard = () => {
   const [loadingAnn,           setLoadingAnn]           = useState(true);
   const [loadingEvt,           setLoadingEvt]           = useState(true);
 
-  const firstName = currentUser?.first_name || currentUser?.username || 'there';
-  const role      = currentUser?.role;
-  const hour      = new Date().getHours();
-  const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName   = currentUser?.first_name || currentUser?.username || 'there';
+  const role        = currentUser?.role;
+  const hour        = new Date().getHours();
+  const greeting    = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const dailyProverb = getDailyProverb();
 
   /* ── Fetch announcements (no expired filter — backend handles it) ── */
   useEffect(() => {
@@ -174,27 +176,28 @@ const Dashboard = () => {
 
       {/* ── Hero banner ─────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-navy-gradient shadow-navy-lg min-h-[200px]">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage: `repeating-linear-gradient(45deg,rgba(255,215,0,.04) 0,rgba(255,215,0,.04) 1px,transparent 0,transparent 50%),repeating-linear-gradient(-45deg,rgba(255,215,0,.04) 0,rgba(255,215,0,.04) 1px,transparent 0,transparent 50%)`,
-            backgroundSize: '28px 28px',
-          }}
-        />
+        {/* Toghu textile texture */}
+        <div aria-hidden="true" className="absolute inset-0 toghu-pattern pointer-events-none" />
         <div aria-hidden="true" className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-gold/8 blur-[80px]" />
         <div aria-hidden="true" className="absolute bottom-0 left-1/3 w-40 h-40 rounded-full bg-navy-500/30 blur-[60px]" />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-center gap-6 p-6 lg:p-8">
+        {/* Cameroon stripe along the top of the hero */}
+        <div className="cameroon-stripe absolute top-0 left-0 right-0" aria-hidden="true" />
+
+        <div className="relative flex flex-col lg:flex-row lg:items-center gap-6 p-6 lg:p-8 pt-8">
           <div className="flex-1">
             <p className="text-gold text-xs font-bold tracking-widest uppercase mb-2 opacity-80">
               {greeting}
             </p>
-            <h1 className="font-display font-bold text-white leading-tight mb-2"
+            <h1 className="font-display font-bold text-white leading-tight mb-1"
               style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)' }}>
               Welcome back,{' '}
               <span className="text-gold animate-glow-text">{firstName}</span>
             </h1>
+            {/* School motto */}
+            <p className="text-white/40 text-xs font-bold tracking-widest uppercase mb-4">
+              Building Tomorrow's African Leaders Today
+            </p>
             <p className="text-white/60 text-sm mb-6">
               Here's what's happening at PKFokam today
             </p>
@@ -221,10 +224,23 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="flex flex-row lg:flex-col gap-2.5 lg:min-w-[220px]">
-            <StatPill icon={FiUsers}    value="2 500+" label="Students"   sub="Currently enrolled" />
-            <StatPill icon={FiBook}     value="128+"   label="Resources"  sub="Handbook documents" />
-            <StatPill icon={FiClock}    value="24 / 7" label="AI Support" sub="Always available"   />
+          <div className="flex flex-col gap-2.5 lg:min-w-[220px]">
+            <StatPill icon={FiUsers} value="2 500+" label="Students"   sub="Currently enrolled" />
+            <StatPill icon={FiBook}  value="128+"   label="Resources"  sub="Handbook documents" />
+            <StatPill icon={FiClock} value="24 / 7" label="AI Support" sub="Always available"   />
+
+            {/* Daily proverb widget */}
+            <div className="mt-1 px-3.5 py-3 rounded-xl bg-white/8 border border-white/12 backdrop-blur-sm">
+              <p className="text-[9px] font-black tracking-widest uppercase text-gold/50 mb-1.5">
+                Wisdom of the Day
+              </p>
+              <blockquote className="text-[11px] font-medium text-white/70 leading-relaxed italic mb-1.5">
+                "{dailyProverb.text}"
+              </blockquote>
+              <p className="text-[9px] text-white/30 font-semibold">
+                — {dailyProverb.people}, {dailyProverb.region}
+              </p>
+            </div>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import {
   FiShield, FiClock, FiAward,
 } from 'react-icons/fi';
 import PKFLogo from '../../components/PKFLogo';
+import { PROVERBS } from '../../data/proverbs';
 
 /* ── Feature card (left panel) ──────────────────────────────── */
 const Feature = ({ icon: Icon, label, delay }) => (
@@ -41,6 +42,18 @@ export default function Login() {
 
   const { login } = useAuth();
   const timerRef  = useRef(null);
+
+  /* Rotate through proverbs every 7 seconds */
+  const [provIdx, setProvIdx] = useState(() =>
+    Math.floor(Date.now() / 1000) % PROVERBS.length
+  );
+  useEffect(() => {
+    const id = setInterval(() =>
+      setProvIdx(i => (i + 1) % PROVERBS.length), 7000
+    );
+    return () => clearInterval(id);
+  }, []);
+  const proverb = PROVERBS[provIdx];
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
@@ -94,8 +107,11 @@ export default function Login() {
       {/* ── Left branding panel ───────────────────────────────── */}
       <div className="hidden lg:flex flex-col justify-between flex-1 px-14 pt-24 pb-14 relative z-[1] max-w-[620px]">
 
+        {/* Toghu textile overlay on left panel */}
+        <div aria-hidden="true" className="absolute inset-0 toghu-pattern pointer-events-none opacity-70" />
+
         {/* Top: badge + brand + headline */}
-        <div className="animate-fade-up">
+        <div className="animate-fade-up relative">
           {/* Institute badge */}
           <div className="inline-flex items-center gap-2 mb-10
             px-4 py-1.5 rounded-full border border-gold/25 bg-gold/8 backdrop-blur-sm">
@@ -123,15 +139,18 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Headline */}
+          {/* School motto — primary headline */}
           <p
-            className="font-display font-bold text-white leading-tight mb-5"
+            className="font-display font-bold text-white leading-tight mb-3"
             style={{ fontSize: 'clamp(2rem, 3vw, 2.75rem)' }}
           >
-            Your gateway to{' '}
-            <span className="text-gold">academic excellence</span>{' '}
-            at PKFokam
+            Building Tomorrow's{' '}
+            <span className="text-gold">African Leaders</span>{' '}
+            Today
           </p>
+
+          {/* Cameroon tri-colour accent under motto */}
+          <div className="cameroon-stripe rounded-full w-24 mb-6" aria-hidden="true" />
 
           <p className="text-white/55 text-base leading-relaxed mb-10 max-w-[440px]">
             Access your digital handbook, connect with the AI assistant,
@@ -147,8 +166,24 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Bottom: stats */}
-        <div className="animate-fade-up" style={{ animationDelay: '300ms' }}>
+        {/* Bottom: rotating proverb + stats */}
+        <div className="animate-fade-up relative" style={{ animationDelay: '300ms' }}>
+          {/* Proverb widget */}
+          <div className="mb-6 px-4 py-4 rounded-2xl border border-gold/15 bg-white/5 backdrop-blur-sm">
+            <p className="text-[10px] font-black tracking-widest uppercase text-gold/60 mb-2">
+              Wisdom of the Day
+            </p>
+            <blockquote
+              key={provIdx}
+              className="text-sm font-medium text-white/80 leading-relaxed italic mb-2 animate-fade-up"
+            >
+              "{proverb.text}"
+            </blockquote>
+            <p className="text-[10px] text-white/35 font-semibold">
+              — {proverb.people} proverb, {proverb.region}
+            </p>
+          </div>
+
           <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent mb-8" />
           <div className="flex items-center gap-12">
             {[
