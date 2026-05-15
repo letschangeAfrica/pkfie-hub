@@ -30,8 +30,6 @@ import Settings from './pages/main/Settings';
 import Announcements from './pages/main/Announcements';
 import AdminNotifications from './pages/admin/AdminNotifications';
 import NotFound from './pages/NotFound/NotFound';
-import './App.css';
-
 // ProtectedRoute implementation for role-based protection
 const ProtectedRoute = ({ children, requireAdmin = false, allowedRoles }) => {
   const { isAuthenticated, isAdmin, currentUser, loading } = useAuth();
