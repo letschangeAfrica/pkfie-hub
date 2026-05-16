@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: Django tests ───────────────────────────────────────────────
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: pkfehub_backend/requirements.txt
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Install Python dependencies
+        run: pip install -r pkfehub_backend/requirements.txt
+
+      - name: Run Django tests
+        working-directory: pkfehub_backend
+        run: |
+          python manage.py test \
+            users.tests \
+            announcements.tests \
+            events.tests \
+            documents.tests \
+            feedback.tests \
+            chat.tests \
+            api.tests \
+            notifications.tests \
+            gallery.tests \
+            handbook.tests \
+            analytics.tests \
+            system.tests \
+            innovation.tests \
+            calendar_app.tests \
+            pathfinder.tests \
+            --verbosity=1
+        env:
+          SECRET_KEY: ci-secret-key-not-for-production
+          DEBUG: "True"
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+
+  # ── Frontend: React build check ─────────────────────────────────────────
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+        env:
+          CI: false
+          REACT_APP_BACKEND_URL: http://localhost:8000

@@ -1,0 +1,13 @@
+node_modules/
+build/
+.git/
+.github/
+venv/
+pkfehub_backend/venv/
+pkfehub_backend/__pycache__/
+pkfehub_backend/*.sqlite3
+pkfehub_backend/media/
+pkfehub_backend/staticfiles/
+.env
+.env.*
+*.md

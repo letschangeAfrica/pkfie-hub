@@ -88,7 +88,7 @@ export default function AIModelManagement() {
   const fetchModels = async () => {
     setLoadingModels(true);
     try {
-      const res  = await api.get('/models/');
+      const res  = await api.get('/chat/models/');
       const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
       setModels(data);
       setSelectedModel(prev =>
@@ -157,7 +157,7 @@ export default function AIModelManagement() {
     setFieldErrors({});
     try {
       if (!modelId) {
-        await api.post('/models/', {
+        await api.post('/chat/models/', {
           name: selectedModel.name || 'OpenAI',
           version: selectedModel.version || '',
           provider: selectedModel.provider || 'OpenAI',
@@ -168,7 +168,7 @@ export default function AIModelManagement() {
         await fetchModels();
       } else {
         const model = models.find(m => m.id === modelId);
-        await api.patch(`/models/${modelId}/`, { config: model?.config });
+        await api.patch(`/chat/models/${modelId}/`, { config: model?.config });
         toast('Configuration saved.');
         fetchModels();
       }
@@ -192,7 +192,7 @@ export default function AIModelManagement() {
     setModels(prev => prev.map(m => m.id === id ? { ...m, is_active: newState } : m));
     if (selectedModel?.id === id) setSelectedModel(prev => ({ ...prev, is_active: newState }));
     try {
-      await api.patch(`/models/${id}/`, { is_active: newState });
+      await api.patch(`/chat/models/${id}/`, { is_active: newState });
       toast(`Model ${newState ? 'activated' : 'deactivated'}.`);
       fetchModels();
     } catch (err) {
@@ -216,7 +216,7 @@ export default function AIModelManagement() {
       return;
     }
     try {
-      const res = await api.get(`/models/${id}/`);
+      const res = await api.get(`/chat/models/${id}/`);
       setModels(prev => prev.map(m => m.id === id ? res.data : m));
       if (selectedModel?.id === id) setSelectedModel(res.data);
       toast('Configuration reset to server defaults.');
@@ -246,7 +246,7 @@ export default function AIModelManagement() {
           setUsedModelInfo({ id: usedId, name: `${cached.provider} · ${cached.name}` });
         } else {
           try {
-            const mres = await api.get(`/models/${usedId}/`);
+            const mres = await api.get(`/chat/models/${usedId}/`);
             setUsedModelInfo({ id: usedId, name: `${mres.data.provider} · ${mres.data.name}` });
           } catch { setUsedModelInfo({ id: usedId, name: `Model ${usedId}` }); }
         }

@@ -1,115 +1,98 @@
-/* src/services/api.js
-   Improved axios wrapper for PKFe-Hub frontend.
-   - Consistent env var: REACT_APP_API_URL
-   - Export helpers: setAuthToken, clearAuthToken, setUnauthorizedHandler
-   - Response interceptor calls an injected onUnauthorized handler instead of directly redirecting.
-   - Includes timeout and optional withCredentials for cookie-based auth.
-*/
-
 import axios from 'axios';
 
-// Use a single env variable name across the app
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// Create axios instance with sensible defaults
+// In dev the React proxy (package.json "proxy") forwards /api/* to Django,
+// so relative paths work. In production nginx does the same forwarding.
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30_000, // 30s timeout for requests
-  // If using cookie-based (Django session) auth, enable withCredentials
-  // withCredentials: true,
-  headers: {
-    Accept: 'application/json',
-  },
+  baseURL: '/api',
+  timeout: 30_000,
+  withCredentials: true, // send httpOnly refresh_token cookie on every request
+  headers: { Accept: 'application/json' },
 });
 
-// Internal handler the app can provide (e.g., from AuthContext)
-let onUnauthorizedHandler = null;
+// Access token lives only in memory — never touches localStorage or cookies.
+let _accessToken = null;
 
-/**
- * Set the token used for Authorization header.
- * Call this after login to ensure future requests include the token.
- */
-export function setAuthToken(token) {
+export function setAccessToken(token) {
+  _accessToken = token;
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    try {
-      localStorage.setItem('token', token);
-    } catch (e) {
-      // ignore storage errors (e.g., private mode)
-    }
+  } else {
+    delete api.defaults.headers.common['Authorization'];
   }
 }
 
-/** Clear auth from axios defaults and localStorage */
-export function clearAuthToken() {
-  delete api.defaults.headers.common['Authorization'];
-  try {
-    localStorage.removeItem('token');
-  } catch (e) {}
+export function clearAccessToken() {
+  setAccessToken(null);
 }
 
-/** Allow app to inject a handler for 401 (logout/refresh/redirect) */
+// Injected by AuthContext so the interceptor can trigger logout on hard failure.
+let _onUnauthorized = null;
 export function setUnauthorizedHandler(fn) {
-  onUnauthorizedHandler = fn;
+  _onUnauthorized = fn;
 }
 
-/** Helper: get token from storage (used in request interceptor) */
-function getStoredToken() {
-  try {
-    return localStorage.getItem('token');
-  } catch (e) {
-    return null;
-  }
-}
-
-// Request interceptor: always read token at request time (keeps multi-tab sync)
+// Always use the in-memory token (not localStorage) for every request.
 api.interceptors.request.use(
   (config) => {
-    const token = getStoredToken();
-    if (token) {
+    if (_accessToken) {
       config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      if (config.headers) delete config.headers.Authorization;
+      config.headers.Authorization = `Bearer ${_accessToken}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401 centrally
-let isRefreshing = false;
-let pendingRequests = [];
+// Automatic silent refresh on 401.
+let _isRefreshing = false;
+let _pendingQueue = [];
+
+function drainQueue(error, token) {
+  _pendingQueue.forEach(({ resolve, reject }) =>
+    error ? reject(error) : resolve(token)
+  );
+  _pendingQueue = [];
+}
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const status = error?.response?.status;
+    const httpStatus = error?.response?.status;
+    const originalRequest = error.config;
 
-    // If 401: attempt a refresh (optional) then call onUnauthorizedHandler
-    if (status === 401) {
-      // Option 1: Try refresh token flow (placeholder)
-      // if (!isRefreshing) { ... refresh logic here ... }
-      // For now: call injected handler if present, otherwise clear token and fallback to redirect
-      if (typeof onUnauthorizedHandler === 'function') {
-        try {
-          await onUnauthorizedHandler(error);
-        } catch (handlerErr) {
-          // If handler fails or chooses to not recover, fall through to default
-        }
-        return Promise.reject(error);
+    // Skip refresh loop for the refresh endpoint itself or already-retried requests.
+    const isRefreshEndpoint = originalRequest?.url?.includes('token-refresh');
+    if (httpStatus === 401 && !originalRequest?._retry && !isRefreshEndpoint) {
+      if (_isRefreshing) {
+        // Queue the request until the in-flight refresh resolves.
+        return new Promise((resolve, reject) => {
+          _pendingQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
       }
 
-      // Default fallback (legacy behavior): clear token and redirect to login
-      try { localStorage.removeItem('token'); } catch (e) {}
-      // Navigating from inside services isn't recommended for testability, but keep as fallback:
-      if (typeof window !== 'undefined') {
-        window.location.href = '/admin/login';
+      originalRequest._retry = true;
+      _isRefreshing = true;
+
+      try {
+        const res = await api.post('/auth/token-refresh/');
+        const newToken = res.data.access;
+        setAccessToken(newToken);
+        drainQueue(null, newToken);
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        drainQueue(refreshError, null);
+        clearAccessToken();
+        if (typeof _onUnauthorized === 'function') _onUnauthorized();
+        return Promise.reject(refreshError);
+      } finally {
+        _isRefreshing = false;
       }
-      return Promise.reject(error);
     }
 
-    // Optionally handle 5xx with retry logic here (axios-retry can be used)
     return Promise.reject(error);
   }
 );

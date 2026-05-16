@@ -1,0 +1,67 @@
+version: '3.9'
+
+services:
+
+  # ── PostgreSQL database ────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pkfehub
+      POSTGRES_USER: pkfehub
+      POSTGRES_PASSWORD: pkfehub_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pkfehub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Django backend ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./pkfehub_backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEBUG=True
+      - DATABASE_URL=postgresql://pkfehub:pkfehub_dev_password@db:5432/pkfehub
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - CORS_ALLOW_ALL_ORIGINS=True
+    volumes:
+      - ./pkfehub_backend:/app        # hot reload — mounts source
+      - media_files:/app/media        # persist uploaded files
+    depends_on:
+      db:
+        condition: service_healthy
+    # Override CMD for dev: use runserver instead of gunicorn
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # ── React frontend (development) ───────────────────────────────────────
+  frontend:
+    image: node:18-alpine
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true    # file-watching in Docker on Windows/Mac
+    volumes:
+      - .:/app
+      - /app/node_modules           # keep container node_modules separate
+    command: npm start
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_files:
