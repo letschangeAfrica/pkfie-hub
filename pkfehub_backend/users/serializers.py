@@ -118,14 +118,21 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             "phone_number",
         )
 
+    SELF_REGISTERABLE_ROLES = {"student", "parent"}
+
     def validate(self, attrs):
         if attrs["password"] != attrs["password2"]:
             raise serializers.ValidationError(
                 {"password": "Password fields didn't match."}
             )
 
-        # Student ID is required for students
-        if attrs.get("role") == "student" and not attrs.get("student_id"):
+        role = attrs.get("role", "student")
+        if role not in self.SELF_REGISTERABLE_ROLES:
+            raise serializers.ValidationError(
+                {"role": "Accounts with this role must be created by an administrator."}
+            )
+
+        if role == "student" and not attrs.get("student_id"):
             raise serializers.ValidationError(
                 {"student_id": "Student ID is required for students."}
             )

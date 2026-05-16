@@ -1,15 +1,10 @@
 from django.urls import path
 from . import views
 
+# Admin user-management endpoints only.
+# Auth endpoints (login, register, token-refresh, logout, profile) live in auth_urls.py
+# and are mounted at /api/auth/ in the main urlconf.
 urlpatterns = [
-    path("register/", views.register_user, name="register"),
-    path("login/", views.login_user, name="login"),
-    path("token-refresh/", views.token_refresh_view, name="token-refresh"),
-    path("logout/", views.logout_user, name="logout"),
-    path("profile/", views.user_profile, name="user-profile"),
-    path("change-password/", views.change_password, name="change-password"),
     path("", views.UserListCreateView.as_view(), name="user-list-create"),
-    path(
-        "<int:pk>/", views.UserRetrieveUpdateDestroyView.as_view(), name="user-detail"
-    ),
+    path("<int:pk>/", views.UserRetrieveUpdateDestroyView.as_view(), name="user-detail"),
 ]
