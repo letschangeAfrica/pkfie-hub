@@ -187,6 +187,11 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 # ── Production security headers ───────────────────────────────────────────────
 # These are safe to enable only when serving over HTTPS in production.
 if not DEBUG:
+    # Railway (and most PaaS) terminate SSL at the edge and forward requests
+    # to Django over plain HTTP internally. This header tells Django to trust
+    # the X-Forwarded-Proto header so it knows the original request was HTTPS
+    # and doesn't redirect in an infinite loop.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31_536_000        # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
