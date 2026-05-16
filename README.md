@@ -1,5 +1,8 @@
 # PKFIE-Hub — AI-Powered Student Information Portal
 
+![Uploading image.png…]()
+
+
 > An intelligent campus gateway for [PKFokam Institute of Excellence](https://pkfokam.edu.cm) that combines a role-based student portal, AI-powered chat assistant, and a full-featured admin panel — built with React 19 and Django 5.2.
 
 ---
