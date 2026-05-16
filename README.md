@@ -2,8 +2,9 @@
 
 <img src="pkfiehub.PNG" alt="PKFe-Hub Interface" width="600">
 
-
 > An intelligent campus gateway for [PKFokam Institute of Excellence](https://pkfokam.edu.cm) that combines a role-based student portal, AI-powered chat assistant, and a full-featured admin panel — built with React 19 and Django 5.2.
+
+**Live:** [pkfie-hub.vercel.app](https://pkfie-hub.vercel.app) · **API:** [pkfie-hub-production.up.railway.app](https://pkfie-hub-production.up.railway.app)
 
 ---
 
@@ -31,7 +32,8 @@ PKFIE-Hub replaces the fragmented, paper-based information flow at PKFokam with 
 │  │  Innovation      │      │  Analytics             │   │
 │  └────────┬─────────┘      └──────────┬─────────────┘   │
 └───────────┼──────────────────────────┼─────────────────┘
-            │   JWT Bearer Token       │
+            │  Access token (memory)   │
+            │  Refresh token (cookie)  │
             ▼                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │              Django REST Framework API                   │
@@ -53,8 +55,8 @@ PKFIE-Hub replaces the fragmented, paper-based information flow at PKFokam with 
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
-     SQLite /          ChromaDB       Anthropic /
-    PostgreSQL        (RAG vectors)   OpenAI API
+     PostgreSQL        ChromaDB       Anthropic /
+    (Railway)        (RAG vectors)   OpenAI API
 ```
 
 ---
@@ -97,50 +99,64 @@ PKFIE-Hub replaces the fragmented, paper-based information flow at PKFokam with 
 ### Frontend
 - **React 19** with React Router 7
 - **Tailwind CSS** (custom navy/gold PKFokam palette)
-- **Axios** with JWT Bearer interceptor and automatic 401 logout
+- **Axios** with in-memory access token, automatic silent refresh, and 401 logout
 - **Chart.js / Recharts** for analytics dashboards
 - **react-icons** (Feather set)
 
 ### Backend
 - **Django 5.2** + **Django REST Framework 3.16**
-- **SimpleJWT** — access/refresh token authentication
-- **django-cors-headers** — CORS management
+- **SimpleJWT** — short-lived access tokens (15 min) + rotating httpOnly refresh tokens (7 days)
+- **django-cors-headers** — CORS locked to specific origins
 - **Anthropic SDK** (primary AI provider) + **OpenAI SDK** (fallback)
 - **ChromaDB** — vector store for RAG document retrieval
 - **PyPDF2 / python-docx** — document parsing pipeline
-- **Celery** — async task queue
 - **SQLite** (development) / **PostgreSQL** (production via `dj-database-url`)
+
+### Infrastructure
+- **Vercel** — React frontend (auto-deploys on push to `main`)
+- **Railway** — Django backend + PostgreSQL (auto-deploys on push to `main`)
+- **GitHub Actions** — CI: 261 Django tests + React build check on every push
 
 ---
 
 ## Authentication & access control
 
-All API endpoints require a valid JWT Bearer token (`IsAuthenticated` is the default permission class). Role-based access is enforced server-side on individual endpoints — not just on the frontend:
+JWT-based authentication with two token tiers:
+
+- **Access token** (15 min) — stored in JavaScript memory only, never in localStorage or cookies. Sent as `Authorization: Bearer` header.
+- **Refresh token** (7 days) — stored in an `httpOnly; SameSite=None; Secure` cookie. Never accessible to JavaScript. Rotated and blacklisted on every use.
+
+On page load the app silently calls `/api/auth/token-refresh/`. If the cookie is valid, the user is restored without seeing the login screen. If not, the login page is shown.
+
+Role-based access is enforced server-side on every endpoint — frontend guards are a UX layer only:
 
 | Role | Access |
 |---|---|
-| `student` | Student portal |
+| `student` | Student portal (all features) |
 | `parent` | Student portal (read-heavy) |
 | `lecturer` | Student portal + course-related write access |
 | `admin` | Full admin panel + all write endpoints |
 
 Key enforcement points:
-- AI model config, system settings, and user management require `IsAdminUser` or `IsStaff`
-- Feedback submissions are readable only by the submitter or an admin (`IsAdminUser` on the list endpoint)
-- Conversations and notifications are scoped to the requesting user — users cannot read each other's data
+- AI model config, system settings, and user management require `IsAdminUser`
+- Feedback submissions are readable only by the submitter or an admin
+- Conversations and notifications are scoped to the requesting user
 
 ---
 
-## Security & Privacy
+## Security
 
-- **Credentials**: All secrets (API keys, SMTP password, `SECRET_KEY`) live in `pkfehub_backend/.env`, which is excluded from version control via `.gitignore`
-- **JWT expiry**: Tokens expire server-side; the frontend clears auth state on any 401 response
-- **Input validation**: All writes pass through DRF serializer validation. Client-side validation is additive
-- **No `dangerouslySetInnerHTML`**: Rich content is rendered with `whitespace-pre-wrap`, never injected as raw HTML
-- **CORS**: Restricted to `localhost:3000` in development — set `CORS_ALLOWED_ORIGINS` to your production domain before deploying
-- **Student data isolation**: All querysets are filtered by `user=request.user` at the API level
-
-> **Planned**: API rate limiting (Django Ratelimit or DRF throttling classes) on the AI chat and authentication endpoints.
+| Area | Implementation |
+|---|---|
+| **XSS protection** | Access token in memory only; refresh token in httpOnly cookie — neither is reachable by injected scripts |
+| **Token theft mitigation** | Refresh token rotation + blacklisting (`token_blacklist` app); a stolen token can only be used once |
+| **Brute-force protection** | DRF throttling: 5 login attempts/min, 10 registrations/min, 60 general anon requests/min |
+| **Role restriction** | Self-registration locked to `student` and `parent` roles; `admin` and `lecturer` accounts created by admins only |
+| **Secret management** | All secrets in `.env` (gitignored); `SECRET_KEY` crashes at startup if missing in production |
+| **HTTPS enforcement** | `SECURE_SSL_REDIRECT`, HSTS (1 year, preload), secure cookies — all active in production |
+| **CORS** | Locked to `localhost:3000` in development, Vercel URL in production — never `allow_all` |
+| **Data isolation** | All querysets filtered by `user=request.user` at the API level |
+| **Input validation** | All writes pass through DRF serializer validation; client-side validation is additive only |
 
 ---
 
@@ -210,8 +226,6 @@ python manage.py seed_pathfinder
 python manage.py runserver
 ```
 
-The API is now available at `http://localhost:8000/api/`.
-
 ### 3. Frontend setup
 
 ```bash
@@ -220,7 +234,7 @@ npm install
 npm start
 ```
 
-The app opens at `http://localhost:3000`. Log in with the superuser credentials — the admin panel is at `/admin`.
+The app opens at `http://localhost:3000`. Log in with the superuser credentials you just created — the admin panel is at `/admin`.
 
 ### 4. Run both together
 
@@ -236,7 +250,7 @@ npm run dev
 ```
 pkfie-hub/
 ├── pkfehub_backend/          # Django backend
-│   ├── users/                # Custom user model (email-based), JWT auth
+│   ├── users/                # Custom user model (email-based), JWT auth, throttling
 │   ├── chat/                 # AI assistant, conversations, AIModel config
 │   ├── documents/            # Document storage + RAG pipeline
 │   ├── announcements/        # Campus announcements with viewer tracking
@@ -251,53 +265,105 @@ pkfie-hub/
 │   ├── analytics/            # Audit logs, usage stats, admin action tracking
 │   ├── ai_training/          # RAG training pipeline (ChromaDB)
 │   ├── system/               # System-wide settings (key/value store)
+│   ├── Dockerfile            # Production image (migrate + createsuperuser + gunicorn)
 │   └── pkfehub_backend/      # Django project settings and root URLs
 │
-└── src/                      # React frontend
-    ├── pages/
-    │   ├── admin/            # Admin panel (10 pages)
-    │   └── main/             # Student/lecturer portal (13 pages)
-    ├── components/           # Shared layout and UI components
-    └── services/
-        └── api.js            # Axios instance with JWT Bearer interceptor
+├── src/                      # React frontend
+│   ├── pages/
+│   │   ├── admin/            # Admin panel (10 pages)
+│   │   └── main/             # Student/lecturer portal (13 pages)
+│   ├── components/           # Shared layout and UI components
+│   ├── contexts/             # AuthContext (session restore, login, logout)
+│   └── services/
+│       └── api.js            # Axios instance — memory token, silent refresh, 401 handling
+│
+└── .github/workflows/ci.yml  # GitHub Actions CI (Django tests + React build)
 ```
 
 ---
 
 ## Environment variables reference
 
+### Backend (`pkfehub_backend/.env`)
+
 | Variable | Required | Description |
 |---|---|---|
-| `SECRET_KEY` | Yes | Django secret key — use a long random string in production |
+| `SECRET_KEY` | Yes | Django secret key — crashes at startup if missing in production |
 | `DEBUG` | No | `True` for development; always `False` in production |
-| `DJANGO_ALLOWED_HOSTS` | Yes | Comma-separated list of allowed hostnames |
+| `DJANGO_ALLOWED_HOSTS` | Yes | Comma-separated allowed hostnames (include your Railway domain) |
+| `CORS_ALLOWED_ORIGINS` | Yes (prod) | Comma-separated frontend URLs (e.g. `https://pkfie-hub.vercel.app`) |
 | `ANTHROPIC_API_KEY` | Yes* | Powers the AI assistant (primary provider) |
 | `OPENAI_API_KEY` | Yes* | AI fallback if Anthropic key is absent |
-| `DATABASE_URL` | No | PostgreSQL connection URL; defaults to SQLite if absent |
+| `DATABASE_URL` | No | PostgreSQL URL; defaults to SQLite if absent |
 | `EMAIL_HOST_USER` | No | Gmail address for outgoing email |
-| `EMAIL_HOST_PASSWORD` | No | Gmail App Password (not your login password) |
+| `EMAIL_HOST_PASSWORD` | No | Gmail App Password (not your account password) |
 
 \* At least one AI key is required for the chat assistant to function.
 
+### Frontend (Vercel environment variables)
+
+| Variable | Required | Description |
+|---|---|---|
+| `REACT_APP_BACKEND_URL` | Yes (prod) | Full Railway backend URL, e.g. `https://pkfie-hub-production.up.railway.app` |
+
 ---
 
-## Deployment
+## Deployment (Railway + Vercel)
 
-- Set `DEBUG=False` and update `DJANGO_ALLOWED_HOSTS` with your real domain
-- Set `CORS_ALLOWED_ORIGINS` in `settings.py` to your frontend URL
-- Run `python manage.py collectstatic` and serve `/staticfiles/` via nginx or a CDN
-- Use PostgreSQL in production — set `DATABASE_URL` in your host's environment variables panel
-- **Never commit `.env`** — use your platform's secret management (Railway, Vercel, Render env vars)
+### Backend — Railway
 
-Recommended platforms: **Railway** (backend + PostgreSQL), **Vercel** (frontend)
+1. Create a new Railway project, add a **Python** service pointing to this repo, and add a **PostgreSQL** plugin.
+2. Set the root directory to `pkfehub_backend` and the watch path to `pkfehub_backend`.
+3. Railway uses the `Dockerfile` automatically. On every deploy it runs:
+   - `python manage.py migrate`
+   - `python manage.py createsuperuser --no-input` (skipped silently if account already exists)
+   - `gunicorn pkfehub_backend.wsgi:application`
+4. Add these environment variables in Railway → Variables:
+
+```
+SECRET_KEY=<long random string>
+DEBUG=False
+DJANGO_ALLOWED_HOSTS=<your-app>.up.railway.app,localhost
+CORS_ALLOWED_ORIGINS=https://<your-app>.vercel.app
+ANTHROPIC_API_KEY=sk-ant-...
+DJANGO_SUPERUSER_EMAIL=admin@pkfokam.edu
+DJANGO_SUPERUSER_PASSWORD=<secure password>
+DJANGO_SUPERUSER_FIRST_NAME=Admin
+DJANGO_SUPERUSER_LAST_NAME=PKFokam
+```
+
+5. Generate a public domain in Railway → Networking → Generate Domain (port 8000).
+
+### Frontend — Vercel
+
+1. Import the repo into Vercel. Set the **root directory** to `/` (repo root).
+2. Framework preset: **Create React App**.
+3. Add this environment variable in Vercel → Settings → Environment Variables:
+
+```
+REACT_APP_BACKEND_URL=https://<your-app>.up.railway.app
+```
+
+4. Deploy. Vercel auto-deploys on every push to `main`.
+
+---
+
+## CI/CD
+
+GitHub Actions runs on every push and pull request:
+
+- **Backend job**: installs Python 3.10, runs all 261 Django tests across 15 apps
+- **Frontend job**: installs Node 18, runs `npm run build` to catch compile and lint errors
+
+Both must pass before a merge to `main`.
 
 ---
 
 ## Contributing
 
 1. Fork the repo and create a feature branch: `git checkout -b feature/your-feature`
-2. Make your changes and run tests: `python manage.py test`
-3. Open a pull request against `main`
+2. Make your changes and run the test suite: `python manage.py test`
+3. Open a pull request against `main` — CI runs automatically
 
 ---
 
