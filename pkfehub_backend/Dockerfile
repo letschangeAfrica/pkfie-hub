@@ -27,5 +27,8 @@ ENV SECRET_KEY=""
 
 EXPOSE 8000
 
-# Run migrations then start gunicorn
-CMD ["sh", "-c", "python manage.py migrate && gunicorn pkfehub_backend.wsgi:application --bind 0.0.0.0:8000 --workers 2"]
+# Run migrations, create superuser if it doesn't exist, then start gunicorn.
+# createsuperuser --no-input reads DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_PASSWORD,
+# DJANGO_SUPERUSER_FIRST_NAME, DJANGO_SUPERUSER_LAST_NAME from env vars.
+# The '|| true' prevents a crash when the account already exists on redeploy.
+CMD ["sh", "-c", "python manage.py migrate && python manage.py createsuperuser --no-input || true && gunicorn pkfehub_backend.wsgi:application --bind 0.0.0.0:8000 --workers 2"]

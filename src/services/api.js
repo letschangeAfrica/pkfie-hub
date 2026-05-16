@@ -65,9 +65,11 @@ api.interceptors.response.use(
     const httpStatus = error?.response?.status;
     const originalRequest = error.config;
 
-    // Skip refresh loop for the refresh endpoint itself or already-retried requests.
+    // Skip refresh loop for auth endpoints and already-retried requests.
+    // Login returning 401 means wrong credentials — don't try to refresh.
     const isRefreshEndpoint = originalRequest?.url?.includes('token-refresh');
-    if (httpStatus === 401 && !originalRequest?._retry && !isRefreshEndpoint) {
+    const isLoginEndpoint   = originalRequest?.url?.includes('/auth/login/');
+    if (httpStatus === 401 && !originalRequest?._retry && !isRefreshEndpoint && !isLoginEndpoint) {
       if (_isRefreshing) {
         // Queue the request until the in-flight refresh resolves.
         return new Promise((resolve, reject) => {
