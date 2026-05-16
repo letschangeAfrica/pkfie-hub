@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-// In dev the React proxy (package.json "proxy") forwards /api/* to Django,
-// so relative paths work. In production nginx does the same forwarding.
+// In dev the React proxy (package.json "proxy") forwards /api/* to Django.
+// In production (Vercel + Railway split deployment) REACT_APP_BACKEND_URL must
+// be set to the Railway backend URL so requests go to the correct origin.
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL
+  ? `${process.env.REACT_APP_BACKEND_URL}/api`
+  : '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 30_000,
   withCredentials: true, // send httpOnly refresh_token cookie on every request
   headers: { Accept: 'application/json' },
