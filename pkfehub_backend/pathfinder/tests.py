@@ -91,18 +91,25 @@ class ProgramAPITest(APITestCase):
     BASE = '/api/pathfinder/programs/'
 
     def setUp(self):
+        self.user = make_user()
         self.prog = make_program('Business IT', 'BIT201')
-        make_program('Inactive Program', 'INACT', active=False)
+        make_program('Inactive Program', 'INACT01', active=False)
+        self.client.credentials(**auth_header(self.client, 'student@pkfokam.edu', 'Pass1234!'))
 
-    def test_anyone_can_list_programs(self):
+    def test_authenticated_user_can_list_programs(self):
         res = self.client.get(self.BASE)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_unauthenticated_cannot_list(self):
+        self.client.credentials()
+        res = self.client.get(self.BASE)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_only_active_programs_listed(self):
         res = self.client.get(self.BASE)
         codes = [p['code'] for p in res.data]
         self.assertIn('BIT201', codes)
-        self.assertNotIn('INACT', codes)
+        self.assertNotIn('INACT01', codes)
 
     def test_search_by_name(self):
         res = self.client.get(f'{self.BASE}?search=Business')
@@ -120,13 +127,20 @@ class PathfinderQuestionAPITest(APITestCase):
     BASE = '/api/pathfinder/questions/'
 
     def setUp(self):
+        self.user = make_user()
         self.q1 = make_question('What is your preferred subject?', order=1)
         self.q2 = make_question('Rate your programming skills.', order=2)
         make_question('Inactive Q', order=3, active=False)
+        self.client.credentials(**auth_header(self.client, 'student@pkfokam.edu', 'Pass1234!'))
 
-    def test_anyone_can_list_questions(self):
+    def test_authenticated_user_can_list_questions(self):
         res = self.client.get(self.BASE)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_unauthenticated_cannot_list(self):
+        self.client.credentials()
+        res = self.client.get(self.BASE)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_only_active_questions_listed(self):
         res = self.client.get(self.BASE)

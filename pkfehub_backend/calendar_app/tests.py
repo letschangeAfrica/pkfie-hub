@@ -165,9 +165,11 @@ class CalendarEventAPITest(APITestCase):
     # — Update / Delete —
 
     def test_update_event_title(self):
+        start = self.event.start_time.isoformat()
+        end = self.event.end_time.isoformat()
         res = self.client.patch(
             f'{self.BASE}{self.event.pk}/',
-            {'title': 'Updated Event'},
+            {'title': 'Updated Event', 'start_time': start, 'end_time': end},
             format='json',
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -222,6 +224,6 @@ class CalendarEventAPITest(APITestCase):
     # — Search —
 
     def test_search_by_title(self):
-        res = self.client.get(f'{self.BASE}?search=Study')
+        res = self.client.get(f'{self.BASE}?search=My+Event')
         titles = [e['title'] for e in res.data]
         self.assertIn('My Event', titles)

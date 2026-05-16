@@ -1,5 +1,6 @@
 anthropic>=0.97.0
 celery==5.5.3
+gunicorn==22.0.0
 chromadb==0.4.15
 dj-database-url==3.0.1
 Django==5.2.6
