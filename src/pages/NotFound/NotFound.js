@@ -1,20 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  FiSearch, 
-  FiHome, 
-  FiFlag, 
-  FiBook, 
-  FiHelpCircle, 
+import {
+  FiSearch,
+  FiHome,
+  FiBook,
   FiCompass,
-  FiArrowRight,
   FiZap,
   FiMessageSquare,
-  FiTarget,
-  FiUsers,
   FiStar
 } from 'react-icons/fi';
-import { FaRobot, FaGraduationCap, FaRocket } from 'react-icons/fa';
+import { FaRobot, FaGraduationCap } from 'react-icons/fa';
 
 export default function NotFound() {
   const navigate = useNavigate();

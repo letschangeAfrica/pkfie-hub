@@ -336,7 +336,7 @@ export default function Handbook() {
               </button>
 
               {openCats[cat.id] && (
-                <ul role="list">
+                <ul>
                   {cat.docs.length === 0 ? (
                     <li className={`pl-9 pr-4 py-2 text-xs italic ${dark ? 'text-navy-600' : 'text-slate-400'}`}>
                       No documents yet

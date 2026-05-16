@@ -190,7 +190,7 @@ export default function InnovationHub() {
         showToast(apiError(err, `Failed to load ${activeTab}.`), 'error');
       })
       .finally(() => setLoading(false));
-  }, [activeTab]);
+  }, [activeTab, showToast]);
 
   /* toast auto-dismiss */
   useEffect(() => {

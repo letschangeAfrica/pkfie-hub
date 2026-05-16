@@ -107,7 +107,7 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick, collapsed, onToggleCollapse
             </p>
           )}
 
-          <ul role="list" className="space-y-0.5">
+          <ul className="space-y-0.5">
             {navItems
               .filter(item => !item.roles || item.roles.includes(currentUser?.role))
               .map(({ path, label, icon: Icon }, idx) => {
@@ -189,7 +189,7 @@ const Sidebar = ({ sidebarOpen, onClose, onNavClick, collapsed, onToggleCollapse
                   Administration
                 </p>
               )}
-              <ul role="list">
+              <ul>
                 <li>
                   <button
                     onClick={() => handleNav('/admin')}

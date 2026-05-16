@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   FiBell, FiRefreshCw, FiAlertTriangle,
-  FiInfo, FiChevronDown, FiX,
+  FiChevronDown, FiX,
 } from 'react-icons/fi';
 
 const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
