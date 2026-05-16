@@ -19,8 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project source
 COPY . .
 
-# Collect static files
+# Collect static files — uses a dummy key that is never used at runtime
+ARG SECRET_KEY=collectstatic-build-time-dummy-key-not-used-at-runtime
+ENV SECRET_KEY=$SECRET_KEY
 RUN python manage.py collectstatic --noinput
+ENV SECRET_KEY=""
 
 EXPOSE 8000
 

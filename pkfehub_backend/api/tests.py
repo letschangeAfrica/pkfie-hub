@@ -8,7 +8,7 @@ from users.models import User
 def make_user(email='student@pkfokam.edu', password='Pass1234!', role='student'):
     return User.objects.create_user(
         email=email, password=password, role=role,
-        first_name='Alice', last_name='Ngo',
+        first_name='Alice', last_name='Ngo', is_verified=True,
     )
 
 

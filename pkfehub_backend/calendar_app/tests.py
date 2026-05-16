@@ -12,7 +12,7 @@ from .models import CalendarEvent, EventReminder
 def make_user(email='student@pkfokam.edu', password='Pass1234!', role='student'):
     return User.objects.create_user(
         email=email, password=password, role=role,
-        first_name='Alice', last_name='Ngo',
+        first_name='Alice', last_name='Ngo', is_verified=True,
     )
 
 
@@ -132,7 +132,7 @@ class CalendarEventAPITest(APITestCase):
         self.assertIn('Public Event', titles)
 
     def test_user_cannot_see_private_events_from_others(self):
-        private = make_event(self.other, 'Private Other Event', is_public=False)
+        make_event(self.other, 'Private Other Event', is_public=False)
         res = self.client.get(self.BASE)
         titles = [e['title'] for e in res.data]
         self.assertNotIn('Private Other Event', titles)

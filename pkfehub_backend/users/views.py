@@ -1,9 +1,11 @@
 from rest_framework import status, generics, permissions, filters
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -15,6 +17,18 @@ from .serializers import UserSerializer, UserRegisterSerializer, UserUpdateSeria
 REFRESH_COOKIE = "refresh_token"
 COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
 
+
+# ── Throttle scopes ───────────────────────────────────────────────────────────
+
+class LoginRateThrottle(AnonRateThrottle):
+    scope = "login"
+
+
+class RegisterRateThrottle(AnonRateThrottle):
+    scope = "register"
+
+
+# ── Cookie helper ─────────────────────────────────────────────────────────────
 
 def _set_refresh_cookie(response, refresh_token):
     response.set_cookie(
@@ -28,15 +42,21 @@ def _set_refresh_cookie(response, refresh_token):
     )
 
 
-# --- Existing Auth/Profile endpoints ---
-
+# ── Auth endpoints ────────────────────────────────────────────────────────────
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register_user(request):
     serializer = UserRegisterSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
+        # Auto-verify on self-registration (no email flow yet).
+        # When an email verification flow is added, remove these two lines
+        # and send a verification email here instead.
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+
         refresh = RefreshToken.for_user(user)
         response = Response(
             {
@@ -53,6 +73,7 @@ def register_user(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_user(request):
     email = request.data.get("email")
     password = request.data.get("password")
@@ -68,6 +89,12 @@ def login_user(request):
         if not user.is_active:
             return Response(
                 {"error": "Account is deactivated"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not user.is_verified:
+            return Response(
+                {"error": "Account is not verified. Please contact an administrator."},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         login(request, user)
@@ -99,6 +126,16 @@ def token_refresh_view(request):
     try:
         refresh = RefreshToken(refresh_token)
         new_access = str(refresh.access_token)
+
+        if jwt_settings.ROTATE_REFRESH_TOKENS:
+            if jwt_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresh.blacklist()
+                except AttributeError:
+                    pass
+            refresh.set_jti()
+            refresh.set_exp()
+            refresh.set_iat()
     except TokenError:
         return Response(
             {"error": "Invalid or expired refresh token"},
@@ -117,6 +154,8 @@ def logout_user(request):
     return response
 
 
+# ── Profile / password endpoints ──────────────────────────────────────────────
+
 @api_view(["GET", "PUT"])
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
@@ -125,21 +164,16 @@ def user_profile(request):
         serializer = UserSerializer(request.user, context={"request": request})
         return Response(serializer.data)
 
-    elif request.method == "PUT":
-        serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {
-                    "user": UserSerializer(
-                        request.user, context={"request": request}
-                    ).data,
-                    "message": "Profile updated successfully",
-                }
-            )
+    serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
         return Response(
-            {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            {
+                "user": UserSerializer(request.user, context={"request": request}).data,
+                "message": "Profile updated successfully",
+            }
         )
+    return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
@@ -162,12 +196,10 @@ def change_password(request):
 
     user.set_password(new_password)
     user.save()
-
     return Response({"message": "Password changed successfully"})
 
 
-# --- User Management (admin) endpoints ---
-
+# ── Admin user-management endpoints ──────────────────────────────────────────
 
 class UserListCreateView(generics.ListCreateAPIView):
     queryset = User.objects.all().order_by("-created_at")

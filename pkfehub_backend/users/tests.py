@@ -11,6 +11,7 @@ def make_user(email='student@pkfokam.edu', password='Pass1234!', role='student',
         email=email, password=password, role=role,
         first_name=kw.get('first_name', 'Alice'),
         last_name=kw.get('last_name', 'Ngo'),
+        is_verified=True,
     )
 
 

@@ -4,12 +4,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Admin URL is configurable via DJANGO_ADMIN_URL env var to avoid easy scanning
+    path(settings.ADMIN_URL, admin.site.urls),
 
-    # Auth endpoints: login, register, token-refresh, logout, profile, change-password
+    # Auth: login, register, token-refresh, logout, profile, change-password
     path("api/auth/", include("users.auth_urls")),
 
-    # Admin user-management endpoints: list, retrieve, update, delete users
+    # Admin user-management: list/retrieve/update/delete users
     path("api/users/", include("users.urls")),
 
     path("api/feedback/", include("feedback.urls")),
@@ -19,8 +20,7 @@ urlpatterns = [
     path("api/", include("api.urls")),
     path("api/", include("documents.urls")),
     path("api/", include("announcements.urls")),
-    path("api/", include("chat.urls")),
-    path("api/chat/", include("chat.urls")),
+    path("api/chat/", include("chat.urls")),  # single mount — no duplicate at /api/
     path("api/notifications/", include("notifications.urls")),
     path("api/gallery/", include("gallery.urls")),
     path("api/", include("system.urls")),
