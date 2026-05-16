@@ -168,6 +168,15 @@ export default function InnovationHub() {
     if (localStorage.getItem(`ih_member_${currentUser.id}`)) setIsMember(true);
   }, [currentUser]);
 
+  const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
+
+  /* toast auto-dismiss */
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   /* fetch on tab change */
   useEffect(() => {
     setLoading(true);
@@ -191,15 +200,6 @@ export default function InnovationHub() {
       })
       .finally(() => setLoading(false));
   }, [activeTab, showToast]);
-
-  /* toast auto-dismiss */
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  const showToast = useCallback((msg, type = 'success') => setToast({ msg, type }), []);
 
   /* ── form handlers ── */
   const handleFormChange = (e) => {
