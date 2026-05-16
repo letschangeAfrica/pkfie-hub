@@ -87,7 +87,8 @@ class RegisterViewTest(APITestCase):
         }, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertIn('access', res.data)
-        self.assertIn('refresh', res.data)
+        self.assertNotIn('refresh', res.data)  # refresh is in the httpOnly cookie
+        self.assertIn('refresh_token', self.client.cookies)
 
     def test_duplicate_email_returns_400(self):
         make_user()
@@ -119,7 +120,8 @@ class LoginViewTest(APITestCase):
         }, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn('access', res.data)
-        self.assertIn('refresh', res.data)
+        self.assertNotIn('refresh', res.data)  # refresh is in the httpOnly cookie
+        self.assertIn('refresh_token', self.client.cookies)
 
     def test_wrong_password_returns_401(self):
         res = self.client.post(self.URL, {

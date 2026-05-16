@@ -3,12 +3,30 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from .models import User
 from .serializers import UserSerializer, UserRegisterSerializer, UserUpdateSerializer
+
+REFRESH_COOKIE = "refresh_token"
+COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
+
+
+def _set_refresh_cookie(response, refresh_token):
+    response.set_cookie(
+        REFRESH_COOKIE,
+        str(refresh_token),
+        max_age=COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="Lax",
+        secure=not settings.DEBUG,
+        path="/",
+    )
+
 
 # --- Existing Auth/Profile endpoints ---
 
@@ -20,15 +38,16 @@ def register_user(request):
     if serializer.is_valid():
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
                 "user": UserSerializer(user, context={"request": request}).data,
-                "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "message": "User registered successfully",
             },
             status=status.HTTP_201_CREATED,
         )
+        _set_refresh_cookie(response, refresh)
+        return response
     return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -51,22 +70,51 @@ def login_user(request):
                 {"error": "Account is deactivated"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
-        # This line ensures last_login is updated!
         login(request, user)
 
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
                 "user": UserSerializer(user, context={"request": request}).data,
-                "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "message": "Login successful",
             }
         )
+        _set_refresh_cookie(response, refresh)
+        return response
 
     return Response(
         {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
     )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def token_refresh_view(request):
+    refresh_token = request.COOKIES.get(REFRESH_COOKIE)
+    if not refresh_token:
+        return Response(
+            {"error": "No refresh token"}, status=status.HTTP_401_UNAUTHORIZED
+        )
+    try:
+        refresh = RefreshToken(refresh_token)
+        new_access = str(refresh.access_token)
+    except TokenError:
+        return Response(
+            {"error": "Invalid or expired refresh token"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    response = Response({"access": new_access})
+    _set_refresh_cookie(response, refresh)
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def logout_user(request):
+    response = Response({"message": "Logged out"})
+    response.delete_cookie(REFRESH_COOKIE, path="/")
+    return response
 
 
 @api_view(["GET", "PUT"])
