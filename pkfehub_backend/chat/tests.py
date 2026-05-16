@@ -86,7 +86,7 @@ class AIModelModelTest(TestCase):
 
 class ConversationAPITest(APITestCase):
 
-    BASE = '/api/conversations/'
+    BASE = '/api/chat/conversations/'
 
     def setUp(self):
         self.user = make_user()
@@ -133,7 +133,7 @@ class ConversationAPITest(APITestCase):
 
 class MessageAPITest(APITestCase):
 
-    BASE = '/api/messages/'
+    BASE = '/api/chat/messages/'
 
     def setUp(self):
         self.user = make_user()

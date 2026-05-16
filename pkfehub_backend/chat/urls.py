@@ -14,7 +14,7 @@ router.register(r"messages", MessageViewSet, basename="message")
 router.register(r"models", AIModelViewSet, basename="aimodel")
 
 urlpatterns = [
-    path("", include(router.urls)),  # /api/.../models/ etc when included under /api/
-    path("chat/ai/", AIChatAPIView.as_view(), name="ai-chat"),
-    path("chat/stats/", ChatStatsAPIView.as_view(), name="chat-stats"),
+    path("", include(router.urls)),
+    path("ai/", AIChatAPIView.as_view(), name="ai-chat"),
+    path("stats/", ChatStatsAPIView.as_view(), name="chat-stats"),
 ]
